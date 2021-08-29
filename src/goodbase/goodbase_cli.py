@@ -71,13 +71,40 @@ class GoodBaseOrchestrator:
 
 
 @click.command()
-@click.option("--passing-task", type=str, multiple=True)
-@click.option("--run-task", type=str, multiple=True)
-@click.option("--run-threshold", type=float)
-@click.option("--pass-threshold", type=float)
-@click.option("--evg-config-file", default=DEFAULT_EVG_CONFIG)
-@click.option("--evg-project", default=DEFAULT_EVG_PROJECT)
-@click.option("--build-variant", multiple=True)
+@click.option(
+    "--passing-task",
+    type=str,
+    multiple=True,
+    help="Specify a task that needs to be passing (can be specified multiple times).",
+)
+@click.option(
+    "--run-task",
+    type=str,
+    multiple=True,
+    help="Specify a task that needs to be run (can be specified multiple times).",
+)
+@click.option(
+    "--run-threshold", type=float, help="Specify the percentage of tasks that need to be run."
+)
+@click.option(
+    "--pass-threshold",
+    type=float,
+    help="Specify the percentage of tasks that need to be successful.",
+)
+@click.option(
+    "--evg-config-file",
+    default=DEFAULT_EVG_CONFIG,
+    type=click.Path(exists=True),
+    help="File containing evergreen authentication information.",
+)
+@click.option(
+    "--evg-project", default=DEFAULT_EVG_PROJECT, help="Evergreen project to query against."
+)
+@click.option(
+    "--build-variant",
+    multiple=True,
+    help="Build variant to check (can be specified multiple times).",
+)
 def main(
     passing_task: List[str],
     run_task: List[str],
@@ -97,6 +124,34 @@ def main(
 
     This command allows you to specify criteria to use to find and checkout a git commit to
     start work from.
+
+    Criteria
+
+    There are 4 criteria that can be specified:
+
+    * The percentage of tasks that have passed in each build.\n
+    * The percentage of tasks that have run in each build.\n
+    * Specific tasks that must have passed in each build (if they are part of that build).\n
+    * Specific tasks that must have run in each build (if they are part of that build).\n
+
+    If not criteria are specified, a success threshold of 0.95 will be used.
+
+    Additionally, you can specify which build variants the criteria should be checked against. By
+    default, only builds that end in 'required' will be checked.
+
+    Examples
+
+    Working on a fix for a task 'replica_sets' on the build variants 'enterprise-rhel-80-64-bit' and
+    'enterprise-windows', to ensure the task has been run on those build variants:
+
+      \b
+      git co-evg-base --run-task replica_sets --build-variant enterprise-rhel-80-64-bit --build-variant --enterprise-windows
+
+    Starting a new change, to ensure that there are no systemic failures on the base commit:
+
+      \b
+      git co-evg-base --pass-threshold 0.98
+
     """
     evg_config_file = os.path.expanduser(evg_config_file)
     evg_api = RetryingEvergreenApi.get_api(config_file=evg_config_file)
