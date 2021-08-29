@@ -1,6 +1,6 @@
 """Command line entry point to application."""
 import os.path
-from typing import Optional
+from typing import List, Optional
 
 import click
 import inject
@@ -12,18 +12,36 @@ from goodbase.services.git_service import GitService
 
 DEFAULT_EVG_CONFIG = "~/.evergreen.yml"
 DEFAULT_EVG_PROJECT = "mongodb-mongo-master"
-MAX_LOOKBACK = 15
+MAX_LOOKBACK = 50
 DEFAULT_THRESHOLD = 0.95
 
 
 class GoodBaseOrchestrator:
+    """Orchestrator for checking base commits."""
+
     @inject.autoparams()
-    def __init__(self, evg_api: EvergreenApi, evg_service: EvergreenService, git_service: GitService) -> None:
+    def __init__(
+        self, evg_api: EvergreenApi, evg_service: EvergreenService, git_service: GitService
+    ) -> None:
+        """
+        Initialize the orchestrator.
+
+        :param evg_api: Evergreen API Client.
+        :param evg_service:  Evergreen Service.
+        :param git_service: Git Service.
+        """
         self.evg_api = evg_api
         self.evg_service = evg_service
         self.git_service = git_service
 
     def find_revision(self, evg_project: str, build_checks: BuildChecks) -> Optional[str]:
+        """
+        Iterate through revisions until one is found that matches the given criteria.
+
+        :param evg_project: Evergreen project to check.
+        :param build_checks: Criteria to enforce.
+        :return: First git revision to match the given criteria if it exists.
+        """
         for idx, evg_version in enumerate(self.evg_api.versions_by_project(evg_project)):
             if idx > MAX_LOOKBACK:
                 return None
@@ -33,7 +51,14 @@ class GoodBaseOrchestrator:
 
         return None
 
-    def checkout_good_base(self, evg_project, build_checks: BuildChecks) -> Optional[str]:
+    def checkout_good_base(self, evg_project: str, build_checks: BuildChecks) -> Optional[str]:
+        """
+        Find the latest git revision that matches the criteria and check it out in git.
+
+        :param evg_project: Evergreen project to check.
+        :param build_checks: Criteria to enforce.
+        :return: Revision that was checked out, if it exists.
+        """
         revision = self.find_revision(evg_project, build_checks)
         if revision:
             self.git_service.checkout(revision)
@@ -49,16 +74,24 @@ class GoodBaseOrchestrator:
 @click.option("--evg-project", default=DEFAULT_EVG_PROJECT)
 @click.option("--build-variant", multiple=True)
 def main(
-    passing_task,
-    run_task,
-    run_threshold,
-    pass_threshold,
-    evg_config_file,
-    evg_project,
-    build_variant,
+    passing_task: List[str],
+    run_task: List[str],
+    run_threshold: float,
+    pass_threshold: float,
+    evg_config_file: str,
+    evg_project: str,
+    build_variant: List[str],
 ) -> None:
     """
-    Hello World
+    Find and checkout a recent git commit that matches the specified criteria.
+
+    When running an Evergreen patch build, it can be useful that base your changes on a commit
+    in which the tests in Evergreen have already been run. This way if you encounter any failures
+    in your patch build, you can easily compare the failure with what was seen in the base commit
+    to understand if your changes may have introduced the failure.
+
+    This command allows you to specify criteria to use to find and checkout a git commit to
+    start work from.
     """
     evg_config_file = os.path.expanduser(evg_config_file)
     evg_api = RetryingEvergreenApi.get_api(config_file=evg_config_file)
@@ -76,10 +109,16 @@ def main(
     if run_task is not None:
         build_checks.active_tasks = set(run_task)
 
-    bv_check = lambda bv: bv.endswith("required")
     if build_variant:
         build_variant_set = set(build_variant)
-        bv_check = lambda bv: bv in build_variant_set
+
+        def bv_check(bv: str) -> bool:
+            return bv in build_variant_set
+
+    else:
+
+        def bv_check(bv: str) -> bool:
+            return bv.endswith("required")
 
     def dependencies(binder: inject.Binder) -> None:
         binder.bind(EvergreenApi, evg_api)

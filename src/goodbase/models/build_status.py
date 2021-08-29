@@ -1,6 +1,6 @@
 """Model for evergreen build status."""
-from collections import Set
 from dataclasses import dataclass
+from typing import Set
 
 
 @dataclass

@@ -1,6 +1,6 @@
 """Service to interact with evergreen."""
 from concurrent.futures import ThreadPoolExecutor as Executor
-from typing import Callable
+from typing import Callable, List
 
 import inject
 from evergreen import EvergreenApi, Version
@@ -55,6 +55,16 @@ class EvergreenService:
         :param build_checks: Build criteria to use.
         :return: True if the version matches the specified criteria.
         """
+        build_status_list = self.get_build_statuses_for_version(evg_version)
+        return all(build_checks.check(bs) for bs in build_status_list)
+
+    def get_build_statuses_for_version(self, evg_version: Version) -> List[BuildStatus]:
+        """
+        Get the build status for this version that match the predicate.
+
+        :param evg_version: Evergreen version to check.
+        :return: List of build statuses.
+        """
         with Executor(max_workers=N_THREADS) as exe:
             jobs = [
                 exe.submit(self.analyze_build, build_id)
@@ -62,6 +72,4 @@ class EvergreenService:
                 if self.bv_predicate(bv)
             ]
 
-            results = [j.result() for j in jobs]
-
-        return all(build_checks.check(bs) for bs in results)
+        return [j.result() for j in jobs]
