@@ -54,8 +54,6 @@ class GoodBaseOrchestrator:
                 if self.evg_service.check_version(evg_version, build_checks):
                     return evg_version.revision
 
-                # bar.update(1)
-
         return None
 
     def checkout_good_base(self, evg_project: str, build_checks: BuildChecks) -> Optional[str]:
@@ -115,6 +113,10 @@ def main(
 
     if run_task is not None:
         build_checks.active_tasks = set(run_task)
+
+    # If no criteria were specified, use the default.
+    if not all([passing_task, run_threshold, passing_task, run_task]):
+        build_checks.success_threshold = DEFAULT_THRESHOLD
 
     if build_variant:
         build_variant_set = set(build_variant)
