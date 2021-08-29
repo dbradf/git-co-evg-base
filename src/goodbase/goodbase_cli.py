@@ -42,12 +42,19 @@ class GoodBaseOrchestrator:
         :param build_checks: Criteria to enforce.
         :return: First git revision to match the given criteria if it exists.
         """
-        for idx, evg_version in enumerate(self.evg_api.versions_by_project(evg_project)):
-            if idx > MAX_LOOKBACK:
-                return None
+        with click.progressbar(
+            self.evg_api.versions_by_project(evg_project),
+            length=MAX_LOOKBACK,
+            label=f"Searching {evg_project} revisions",
+        ) as bar:
+            for idx, evg_version in enumerate(bar):
+                if idx > MAX_LOOKBACK:
+                    return None
 
-            if self.evg_service.check_version(evg_version, build_checks):
-                return evg_version.revision
+                if self.evg_service.check_version(evg_version, build_checks):
+                    return evg_version.revision
+
+                # bar.update(1)
 
         return None
 
