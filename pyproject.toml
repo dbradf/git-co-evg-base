@@ -3,6 +3,8 @@ name = "git-co-evg-base"
 version = "0.1.0"
 description = "Find a good commit to base your work on"
 authors = ["David Bradford <david.bradford@mongodb.com>"]
+readme = "README.md"
+repository = "https://github.com/dbradf/git-co-evg-base"
 packages = [
     { include = "goodbase", from = "src"},
 ]
