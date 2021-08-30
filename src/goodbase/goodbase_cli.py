@@ -1,19 +1,30 @@
 """Command line entry point to application."""
+import logging
 import os.path
+import sys
 from typing import List, Optional
 
 import click
 import inject
+import structlog
 from evergreen import EvergreenApi, RetryingEvergreenApi
+from structlog.stdlib import LoggerFactory
 
 from goodbase.build_checker import BuildChecks
 from goodbase.services.evg_service import BuildVariantPredicate, EvergreenService
 from goodbase.services.git_service import GitService
 
-DEFAULT_EVG_CONFIG = "~/.evergreen.yml"
+LOGGER = structlog.get_logger(__name__)
+
+DEFAULT_EVG_CONFIG = os.path.expanduser("~/.evergreen.yml")
 DEFAULT_EVG_PROJECT = "mongodb-mongo-master"
 MAX_LOOKBACK = 50
 DEFAULT_THRESHOLD = 0.95
+EXTERNAL_LOGGERS = [
+    "evergreen",
+    "inject",
+    "urllib3",
+]
 
 
 class GoodBaseOrchestrator:
@@ -66,8 +77,26 @@ class GoodBaseOrchestrator:
         """
         revision = self.find_revision(evg_project, build_checks)
         if revision:
+            self.git_service.fetch()
             self.git_service.checkout(revision)
         return revision
+
+
+def configure_logging(verbose: bool) -> None:
+    """
+    Configure logging.
+
+    :param verbose: Enable verbose logging.
+    """
+    structlog.configure(logger_factory=LoggerFactory())
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        format="[%(asctime)s - %(name)s - %(levelname)s] %(message)s",
+        level=level,
+        stream=sys.stderr,
+    )
+    for log_name in EXTERNAL_LOGGERS:
+        logging.getLogger(log_name).setLevel(logging.WARNING)
 
 
 @click.command()
@@ -105,6 +134,7 @@ class GoodBaseOrchestrator:
     multiple=True,
     help="Build variant to check (can be specified multiple times).",
 )
+@click.option("--verbose", is_flag=True, default=False, help="Enable debug logging.")
 def main(
     passing_task: List[str],
     run_task: List[str],
@@ -113,6 +143,7 @@ def main(
     evg_config_file: str,
     evg_project: str,
     build_variant: List[str],
+    verbose: bool,
 ) -> None:
     """
     Find and checkout a recent git commit that matches the specified criteria.
@@ -153,6 +184,8 @@ def main(
       git co-evg-base --pass-threshold 0.98
 
     """
+    configure_logging(verbose)
+
     evg_config_file = os.path.expanduser(evg_config_file)
     evg_api = RetryingEvergreenApi.get_api(config_file=evg_config_file)
 
@@ -170,8 +203,10 @@ def main(
         build_checks.active_tasks = set(run_task)
 
     # If no criteria were specified, use the default.
-    if not all([passing_task, run_threshold, passing_task, run_task]):
+    if not any([passing_task, run_threshold, passing_task, run_task]):
         build_checks.success_threshold = DEFAULT_THRESHOLD
+
+    LOGGER.debug("criteria", criteria=build_checks)
 
     if build_variant:
         build_variant_set = set(build_variant)
