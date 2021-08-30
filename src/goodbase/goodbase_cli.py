@@ -203,7 +203,7 @@ def main(
         build_checks.active_tasks = set(run_task)
 
     # If no criteria were specified, use the default.
-    if not any([passing_task, run_threshold, passing_task, run_task]):
+    if not any([pass_threshold, run_threshold, passing_task, run_task]):
         build_checks.success_threshold = DEFAULT_THRESHOLD
 
     LOGGER.debug("criteria", criteria=build_checks)

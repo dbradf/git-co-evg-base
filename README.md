@@ -168,10 +168,7 @@ Please open a Github Pull Request for code review.
 
 ### Deployment
 
-_Instructions for how to deploy to production. This should include a link to access the deployed
-instance in production._
-
-Deployment to production is automatically triggered on merges to master.
+Deployment to pypi is automatically triggered on merges to master.
 
 ## Resources
 
