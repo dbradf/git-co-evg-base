@@ -31,7 +31,7 @@ git commit to start work from.
 
 ## Dependencies
 
-* Python 3.9 or later
+* Python 3.8 or later
 * git
 * [Evergreen config file](https://github.com/evergreen-ci/evergreen/wiki/Using-the-Command-Line-Tool#downloading-the-command-line-tool)
 
