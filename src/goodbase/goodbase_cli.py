@@ -2,7 +2,8 @@
 import logging
 import os.path
 import sys
-from typing import List, Optional
+from time import perf_counter
+from typing import List, NamedTuple, Optional
 
 import click
 import inject
@@ -27,12 +28,28 @@ EXTERNAL_LOGGERS = [
 ]
 
 
+class GoodBaseOptions(NamedTuple):
+    """
+    Options for execution.
+
+    * perform_checkout: Run git checkout on the found commit.
+    """
+
+    perform_checkout: bool
+    max_lookback: int = MAX_LOOKBACK
+    timeout_secs: Optional[int] = None
+
+
 class GoodBaseOrchestrator:
     """Orchestrator for checking base commits."""
 
     @inject.autoparams()
     def __init__(
-        self, evg_api: EvergreenApi, evg_service: EvergreenService, git_service: GitService
+        self,
+        evg_api: EvergreenApi,
+        evg_service: EvergreenService,
+        git_service: GitService,
+        options: GoodBaseOptions,
     ) -> None:
         """
         Initialize the orchestrator.
@@ -40,10 +57,12 @@ class GoodBaseOrchestrator:
         :param evg_api: Evergreen API Client.
         :param evg_service:  Evergreen Service.
         :param git_service: Git Service.
+        :param options: Options for execution.
         """
         self.evg_api = evg_api
         self.evg_service = evg_service
         self.git_service = git_service
+        self.options = options
 
     def find_revision(self, evg_project: str, build_checks: BuildChecks) -> Optional[str]:
         """
@@ -53,17 +72,31 @@ class GoodBaseOrchestrator:
         :param build_checks: Criteria to enforce.
         :return: First git revision to match the given criteria if it exists.
         """
+        start_time = perf_counter()
         with click.progressbar(
             self.evg_api.versions_by_project(evg_project),
-            length=MAX_LOOKBACK,
+            length=self.options.max_lookback,
             label=f"Searching {evg_project} revisions",
         ) as bar:
             for idx, evg_version in enumerate(bar):
-                if idx > MAX_LOOKBACK:
+                if idx > self.options.max_lookback:
+                    LOGGER.debug("Max lookback hit", max_lookback=MAX_LOOKBACK, commit_idx=idx)
                     return None
+
+                LOGGER.debug("Checking version", commit=evg_version.revision)
 
                 if self.evg_service.check_version(evg_version, build_checks):
                     return evg_version.revision
+
+                current_time = perf_counter()
+                elapsed_time = current_time - start_time
+                if self.options.timeout_secs and elapsed_time > self.options.timeout_secs:
+                    LOGGER.debug(
+                        "Timeout hit",
+                        timeout_secs=self.options.timeout_secs,
+                        elapsed_time=elapsed_time,
+                    )
+                    return None
 
         return None
 
@@ -76,7 +109,7 @@ class GoodBaseOrchestrator:
         :return: Revision that was checked out, if it exists.
         """
         revision = self.find_revision(evg_project, build_checks)
-        if revision:
+        if revision and self.options.perform_checkout:
             self.git_service.fetch()
             self.git_service.checkout(revision)
         return revision
@@ -134,6 +167,19 @@ def configure_logging(verbose: bool) -> None:
     multiple=True,
     help="Build variant to check (can be specified multiple times).",
 )
+@click.option(
+    "--perform-checkout/--no-perform-checkout",
+    is_flag=True,
+    default=True,
+    help="Whether git checkout should be run on found command.",
+)
+@click.option(
+    "--commit-lookback",
+    type=int,
+    default=MAX_LOOKBACK,
+    help="Number of commits to check before giving up",
+)
+@click.option("--timeout-secs", type=int, help="Number of seconds to search for before giving up.")
 @click.option("--verbose", is_flag=True, default=False, help="Enable debug logging.")
 def main(
     passing_task: List[str],
@@ -143,6 +189,9 @@ def main(
     evg_config_file: str,
     evg_project: str,
     build_variant: List[str],
+    perform_checkout: bool,
+    commit_lookback: int,
+    timeout_secs: Optional[int],
     verbose: bool,
 ) -> None:
     """
@@ -189,6 +238,12 @@ def main(
     evg_config_file = os.path.expanduser(evg_config_file)
     evg_api = RetryingEvergreenApi.get_api(config_file=evg_config_file)
 
+    options = GoodBaseOptions(
+        perform_checkout=perform_checkout,
+        max_lookback=commit_lookback,
+        timeout_secs=timeout_secs,
+    )
+
     build_checks = BuildChecks()
     if pass_threshold is not None:
         build_checks.success_threshold = pass_threshold
@@ -222,6 +277,7 @@ def main(
     def dependencies(binder: inject.Binder) -> None:
         binder.bind(EvergreenApi, evg_api)
         binder.bind(BuildVariantPredicate, bv_check)
+        binder.bind(GoodBaseOptions, options)
 
     inject.configure(dependencies)
 
@@ -232,6 +288,7 @@ def main(
         click.echo(click.style(f"Found revision: {revision}", fg="green"))
     else:
         click.echo(click.style("No revision found", fg="red"))
+        sys.exit(1)
 
 
 if __name__ == "__main__":
