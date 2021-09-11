@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 -2021-09-11
+- Add support for rebase and merge.
+
+## 0.2.0 - 2021-09-11
+- Add support for modules
+
 ## 0.1.2 - 2021-09-08
 - Add timeout and max lookback options.
 - Add option to skip commit.

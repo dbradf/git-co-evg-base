@@ -10,11 +10,12 @@ import click
 import inject
 import structlog
 from evergreen import EvergreenApi, RetryingEvergreenApi
+from plumbum import ProcessExecutionError
 from structlog.stdlib import LoggerFactory
 
 from goodbase.build_checker import BuildChecks
 from goodbase.services.evg_service import BuildVariantPredicate, EvergreenService
-from goodbase.services.git_service import GitService
+from goodbase.services.git_service import GitAction, GitService
 
 LOGGER = structlog.get_logger(__name__)
 
@@ -34,13 +35,13 @@ class GoodBaseOptions(NamedTuple):
     """
     Options for execution.
 
-    * perform_checkout: Run git checkout on the found commit.
     * max_lookback: Number of commits to scan before giving up.
+    * operation: Type of git operation to perform.
     * timeouts_secs: Number of seconds to scan before timing out.
     """
 
-    perform_checkout: bool
     max_lookback: int
+    operation: GitAction
     timeout_secs: Optional[int] = None
 
 
@@ -50,10 +51,12 @@ class RevisionInformation(NamedTuple):
 
     revision: Revision of base project.
     module_revisions: Revisions of any modules associated with the project.
+    errors: Errors encountered while performing git operations.
     """
 
     revision: str
     module_revisions: Dict[str, str]
+    errors: Optional[Dict[str, str]] = None
 
 
 class GoodBaseOrchestrator:
@@ -118,12 +121,33 @@ class GoodBaseOrchestrator:
 
         return None
 
-    def checkout_modules(self, evg_project: str, module_revisions: Dict[str, str]) -> None:
+    def attempt_git_operation(
+        self, operation: GitAction, revision: str, directory: Optional[Path] = None
+    ) -> Optional[str]:
+        """
+        Attempt to perform the specified git operation.
+
+        :param operation: Git operation to perform.
+        :param revision: Git revision to perform operation on.
+        :param directory: Directory of git repository.
+        :return: Error message if an error was encountered.
+        """
+        try:
+            self.git_service.perform_action(operation, revision, directory)
+        except ProcessExecutionError:
+            LOGGER.warning("Error encountered during git operation", exc_info=True)
+            return f"Encountered error performing '{operation}' on '{revision}'"
+        return None
+
+    def checkout_modules(
+        self, evg_project: str, module_revisions: Dict[str, str]
+    ) -> Dict[str, str]:
         """
         Checkout existing modules to the specified revisions.
 
         :param evg_project: Evergreen project of modules.
         :param module_revisions: Dictionary of module names and git revisions to check out.
+        :return: Dictionary of error encountered.
         """
         module_locations = self.evg_service.get_module_locations(evg_project)
         LOGGER.debug(
@@ -131,10 +155,15 @@ class GoodBaseOrchestrator:
             module_locations=module_locations,
             module_revisions=module_revisions,
         )
+        errors_encountered = {}
         for module, module_rev in module_revisions.items():
             directory = Path(module_locations[module]) / module
             if directory.exists():
-                self.git_service.fetch_and_checkout(module_rev, directory)
+                errmsg = self.attempt_git_operation(self.options.operation, module_rev, directory)
+                if errmsg:
+                    errors_encountered[module] = errmsg
+
+        return errors_encountered
 
     def checkout_good_base(
         self, evg_project: str, build_checks: BuildChecks
@@ -149,11 +178,14 @@ class GoodBaseOrchestrator:
         revision = self.find_revision(evg_project, build_checks)
         if revision:
             module_revisions = self.evg_service.get_modules_revisions(evg_project, revision)
-            if self.options.perform_checkout:
-                self.git_service.fetch_and_checkout(revision)
-                self.checkout_modules(evg_project, module_revisions)
+            errmsg = self.attempt_git_operation(self.options.operation, revision)
+            errors_encountered = self.checkout_modules(evg_project, module_revisions)
+            if errmsg:
+                errors_encountered["BASE"] = errmsg
 
-            return RevisionInformation(revision=revision, module_revisions=module_revisions)
+            return RevisionInformation(
+                revision=revision, module_revisions=module_revisions, errors=errors_encountered
+            )
         return None
 
 
@@ -210,18 +242,18 @@ def configure_logging(verbose: bool) -> None:
     help="Build variant to check (can be specified multiple times).",
 )
 @click.option(
-    "--perform-checkout/--no-perform-checkout",
-    is_flag=True,
-    default=True,
-    help="Whether git checkout should be run on found command.",
-)
-@click.option(
     "--commit-lookback",
     type=int,
     default=MAX_LOOKBACK,
     help="Number of commits to check before giving up",
 )
 @click.option("--timeout-secs", type=int, help="Number of seconds to search for before giving up.")
+@click.option(
+    "--git-operation",
+    type=click.Choice([a.value for a in GitAction]),
+    default=GitAction.CHECKOUT,
+    help="Git operations to perform with found commit [default=checkout].",
+)
 @click.option("--verbose", is_flag=True, default=False, help="Enable debug logging.")
 def main(
     passing_task: List[str],
@@ -231,9 +263,9 @@ def main(
     evg_config_file: str,
     evg_project: str,
     build_variant: List[str],
-    perform_checkout: bool,
     commit_lookback: int,
     timeout_secs: Optional[int],
+    git_operation: GitAction,
     verbose: bool,
 ) -> None:
     """
@@ -287,8 +319,8 @@ def main(
     evg_api = RetryingEvergreenApi.get_api(config_file=evg_config_file)
 
     options = GoodBaseOptions(
-        perform_checkout=perform_checkout,
         max_lookback=commit_lookback,
+        operation=git_operation,
         timeout_secs=timeout_secs,
     )
 
@@ -336,6 +368,18 @@ def main(
         click.echo(click.style(f"Found revision: {revision.revision}", fg="green"))
         for module_name, module_revision in revision.module_revisions.items():
             click.echo(click.style(f"\t{module_name}: {module_revision}", fg="green"))
+
+        if revision.errors:
+            click.echo(
+                click.style(
+                    f"Encountered {len(revision.errors)} errors performing git operations",
+                    fg="yellow",
+                    bold=True,
+                )
+            )
+            click.echo(click.style("Conflicts may need to be manually resolved."))
+            for module, errmsg in revision.errors.items():
+                click.echo(click.style(f"\t{module}: {errmsg}", fg="yellow"))
     else:
         click.echo(click.style("No revision found", fg="red"))
         sys.exit(1)

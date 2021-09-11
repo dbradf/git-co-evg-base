@@ -61,7 +61,7 @@ Usage: git-co-evg-base [OPTIONS]
   This command allows you to specify criteria to use to find and checkout a git commit to start
   work from.
 
-  Criteria
+Criteria:
 
   There are 4 criteria that can be specified:
 
@@ -78,13 +78,13 @@ Usage: git-co-evg-base [OPTIONS]
   Additionally, you can specify which build variants the criteria should be checked against. By
   default, only builds that end in 'required' will be checked.
 
-  Notes
+Notes:
 
   If you have any evergreen modules with local checkouts in the location specified in your
   project's evergreen.yml configuration file. They will automatically be checked out to the
   revision that was run in Evergreen with the revision of the base project.
 
-  Examples
+Examples:
 
   Working on a fix for a task 'replica_sets' on the build variants 'enterprise-rhel-80-64-bit' and
   'enterprise-windows', to ensure the task has been run on those build variants:
@@ -105,10 +105,10 @@ Options:
   --evg-config-file PATH          File containing evergreen authentication information.
   --evg-project TEXT              Evergreen project to query against.
   --build-variant TEXT            Build variant to check (can be specified multiple times).
-  --perform-checkout / --no-perform-checkout
-                                  Whether git checkout should be run on found command.
   --commit-lookback INTEGER       Number of commits to check before giving up
   --timeout-secs INTEGER          Number of seconds to search for before giving up.
+  --git-operation [checkout|rebase|merge|none]
+                                  Git operations to perform with found commit [default=checkout].
   --verbose                       Enable debug logging.
   --help                          Show this message and exit.
 ```

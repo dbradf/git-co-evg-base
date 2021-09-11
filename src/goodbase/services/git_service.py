@@ -1,8 +1,25 @@
 """A service for interacting with git."""
+from enum import Enum
 from pathlib import Path
 from typing import Optional
 
 from plumbum import local
+
+
+class GitAction(str, Enum):
+    """
+    Git action to perform.
+
+    checkout: Checkout a specific git commit.
+    rebase: Rebase changes onto a specific git commit.
+    merge: Merge changes from a specific commit onto branch.
+    none: Do not perform any actions.
+    """
+
+    CHECKOUT = "checkout"
+    REBASE = "rebase"
+    MERGE = "merge"
+    NONE = "none"
 
 
 class GitService:
@@ -12,15 +29,26 @@ class GitService:
         """Initialize the service."""
         self.git = local.cmd.git
 
-    def fetch_and_checkout(self, revision: str, directory: Optional[Path] = None) -> None:
+    def perform_action(
+        self, action: GitAction, revision: str, directory: Optional[Path] = None
+    ) -> None:
         """
-        Fetch the latest data from origin and checkout the given commit.
+        Perform the given git operation.
 
-        :param revision: commit revision to checkout.
-        :param directory: Directory to execute command at.
+        :param action: Git operation to perform.
+        :param revision: Git revision to perform operation with.
+        :param directory: Directory of git repository.
         """
+        if action == GitAction.NONE:
+            return
+
         self.fetch(directory)
-        self.checkout(revision, directory)
+        if action == GitAction.CHECKOUT:
+            self.checkout(revision, directory)
+        elif action == GitAction.REBASE:
+            self.rebase(revision, directory)
+        elif action == GitAction.MERGE:
+            self.merge(revision, directory)
 
     def checkout(self, revision: str, directory: Optional[Path] = None) -> None:
         """
@@ -29,12 +57,7 @@ class GitService:
         :param revision: Revision to checkout.
         :param directory: Directory to execute command at.
         """
-        if directory is None:
-            directory = local.cwd
-        elif not directory.is_absolute():
-            directory = local.cwd / directory
-
-        with local.cwd(directory):
+        with local.cwd(self._determine_directory(directory)):
             self.git["checkout", revision]()
 
     def fetch(self, directory: Optional[Path] = None) -> None:
@@ -43,10 +66,39 @@ class GitService:
 
         :param directory: Directory to execute command at.
         """
-        if directory is None:
-            directory = local.cwd
-        elif not directory.is_absolute():
-            directory = local.cwd / directory
-
-        with local.cwd(directory):
+        with local.cwd(self._determine_directory(directory)):
             self.git["fetch", "origin"]()
+
+    def rebase(self, revision: str, directory: Optional[Path] = None) -> None:
+        """
+        Rebase on the given revision.
+
+        :param revision: Revision to rebase on.
+        :param directory: Directory to execute command at.
+        """
+        with local.cwd(self._determine_directory(directory)):
+            self.git["rebase", revision]()
+
+    def merge(self, revision: str, directory: Optional[Path] = None) -> None:
+        """
+        Merge the given revision.
+
+        :param revision: Revision to merge.
+        :param directory: Directory to execute command at.
+        """
+        with local.cwd(self._determine_directory(directory)):
+            self.git["merge", revision]()
+
+    @staticmethod
+    def _determine_directory(directory: Optional[Path] = None) -> Path:
+        """
+        Determine which directory to run git command in.
+
+        :param directory: Directory containing it repository.
+        :return: Path to run git commands in.
+        """
+        if directory is None:
+            return Path(local.cwd)
+        elif not directory.is_absolute():
+            return Path(local.cwd / directory)
+        return directory
