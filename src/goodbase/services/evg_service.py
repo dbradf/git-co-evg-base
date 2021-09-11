@@ -1,12 +1,14 @@
 """Service to interact with evergreen."""
 from concurrent.futures import ThreadPoolExecutor as Executor
-from typing import Callable, List
+from pathlib import Path
+from typing import Callable, Dict, List
 
 import inject
 from evergreen import EvergreenApi, Version
 
 from goodbase.build_checker import BuildChecks
 from goodbase.models.build_status import BuildStatus
+from goodbase.services.file_service import FileService
 
 N_THREADS = 16
 
@@ -17,15 +19,19 @@ class EvergreenService:
     """A service to interact with Evergreen."""
 
     @inject.autoparams()
-    def __init__(self, evg_api: EvergreenApi, bv_predicate: BuildVariantPredicate) -> None:
+    def __init__(
+        self, evg_api: EvergreenApi, bv_predicate: BuildVariantPredicate, file_service: FileService
+    ) -> None:
         """
         Initialize the service.
 
         :param evg_api: Evergreen API client.
         :param bv_predicate: Predicate to check with build variants to check.
+        :param file_service: File service.
         """
         self.evg_api = evg_api
         self.bv_predicate = bv_predicate
+        self.file_service = file_service
 
     def analyze_build(self, build_id: str) -> BuildStatus:
         """
@@ -73,3 +79,43 @@ class EvergreenService:
             ]
 
         return [j.result() for j in jobs]
+
+    def get_modules_revisions(self, project_id: str, revision: str) -> Dict[str, str]:
+        """
+        Get a map of the modules and git revisions they ran with on the given commit.
+
+        :param project_id: Evergreen project being queried.
+        :param revision: Commit revision to query.
+        :return: Dictionary of modules and revisions associated with specified commit.
+        """
+        manifest = self.evg_api.manifest(project_id, revision)
+        modules = manifest.modules
+        if modules is not None:
+            return {module_name: module.revision for module_name, module in modules.items()}
+        return {}
+
+    def get_project_config_location(self, project_id: str) -> str:
+        """
+        Get the path to the evergreen config file for this project.
+
+        :param project_id: ID of Evergreen project being queried.
+        :return: Path to project config file.
+        """
+        project_config_list = self.evg_api.all_projects(
+            project_filter_fn=lambda p: p.identifier == project_id
+        )
+        if len(project_config_list) != 1:
+            raise ValueError(f"Could not find unique project configuration for : '{project_id}'.")
+        project_config = project_config_list[0]
+        return project_config.remote_path
+
+    def get_module_locations(self, project_id: str) -> Dict[str, str]:
+        """
+        Get the paths that project modules are stored.
+
+        :param project_id: ID of project to query.
+        :return: Dictionary of modules and their paths.
+        """
+        project_config_location = self.get_project_config_location(project_id)
+        project_config = self.file_service.read_yaml_file(Path(project_config_location))
+        return {module["name"]: module["prefix"] for module in project_config.get("modules", [])}
