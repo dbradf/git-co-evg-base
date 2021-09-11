@@ -53,57 +53,64 @@ Usage: git-co-evg-base [OPTIONS]
 
   Find and checkout a recent git commit that matches the specified criteria.
 
-  When running an Evergreen patch build, it can be useful that base your
-  changes on a commit in which the tests in Evergreen have already been run.
-  This way if you encounter any failures in your patch build, you can easily
-  compare the failure with what was seen in the base commit to understand if
-  your changes may have introduced the failure.
+  When running an Evergreen patch build, it can be useful that base your changes on a commit in
+  which the tests in Evergreen have already been run. This way if you encounter any failures in
+  your patch build, you can easily compare the failure with what was seen in the base commit to
+  understand if your changes may have introduced the failure.
 
-  This command allows you to specify criteria to use to find and checkout a
-  git commit to start work from.
+  This command allows you to specify criteria to use to find and checkout a git commit to start
+  work from.
 
   Criteria
 
   There are 4 criteria that can be specified:
 
-  * The percentage of tasks that have passed in each build. 
-  * The percentage of tasks that have run in each build. 
-  * Specific tasks that must have passed in each build (if they are part of that build). 
+  * The percentage of tasks that have passed in each build.
+
+  * The percentage of tasks that have run in each build.
+
+  * Specific tasks that must have passed in each build (if they are part of that build).
+
   * Specific tasks that must have run in each build (if they are part of that build).
-  
+
   If not criteria are specified, a success threshold of 0.95 will be used.
 
-  Additionally, you can specify which build variants the criteria should be
-  checked against. By default, only builds that end in 'required' will be
-  checked.
+  Additionally, you can specify which build variants the criteria should be checked against. By
+  default, only builds that end in 'required' will be checked.
+
+  Notes
+
+  If you have any evergreen modules with local checkouts in the location specified in your
+  project's evergreen.yml configuration file. They will automatically be checked out to the
+  revision that was run in Evergreen with the revision of the base project.
 
   Examples
 
-  Working on a fix for a task 'replica_sets' on the build variants
-  'enterprise-rhel-80-64-bit' and 'enterprise-windows', to ensure the task has
-  been run on those build variants:
+  Working on a fix for a task 'replica_sets' on the build variants 'enterprise-rhel-80-64-bit' and
+  'enterprise-windows', to ensure the task has been run on those build variants:
 
       git co-evg-base --run-task replica_sets --build-variant enterprise-rhel-80-64-bit --build-variant --enterprise-windows
 
-  Starting a new change, to ensure that there are no systemic failures on the
-  base commit:
+  Starting a new change, to ensure that there are no systemic failures on the base commit:
 
       git co-evg-base --pass-threshold 0.98
 
 Options:
-  --passing-task TEXT     Specify a task that needs to be passing (can be
-                          specified multiple times).
-  --run-task TEXT         Specify a task that needs to be run (can be
-                          specified multiple times).
-  --run-threshold FLOAT   Specify the percentage of tasks that need to be run.
-  --pass-threshold FLOAT  Specify the percentage of tasks that need to be
-                          successful.
-  --evg-config-file PATH  File containing evergreen authentication
-                          information.
-  --evg-project TEXT      Evergreen project to query against.
-  --build-variant TEXT    Build variant to check (can be specified multiple
-                          times).
-  --help                  Show this message and exit.
+  --passing-task TEXT             Specify a task that needs to be passing (can be specified
+                                  multiple times).
+  --run-task TEXT                 Specify a task that needs to be run (can be specified multiple
+                                  times).
+  --run-threshold FLOAT           Specify the percentage of tasks that need to be run.
+  --pass-threshold FLOAT          Specify the percentage of tasks that need to be successful.
+  --evg-config-file PATH          File containing evergreen authentication information.
+  --evg-project TEXT              Evergreen project to query against.
+  --build-variant TEXT            Build variant to check (can be specified multiple times).
+  --perform-checkout / --no-perform-checkout
+                                  Whether git checkout should be run on found command.
+  --commit-lookback INTEGER       Number of commits to check before giving up
+  --timeout-secs INTEGER          Number of seconds to search for before giving up.
+  --verbose                       Enable debug logging.
+  --help                          Show this message and exit.
 ```
 
 Checkout using the default criteria:

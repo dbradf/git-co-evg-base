@@ -2,8 +2,9 @@
 import logging
 import os.path
 import sys
+from pathlib import Path
 from time import perf_counter
-from typing import List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 import click
 import inject
@@ -19,6 +20,7 @@ LOGGER = structlog.get_logger(__name__)
 
 DEFAULT_EVG_CONFIG = os.path.expanduser("~/.evergreen.yml")
 DEFAULT_EVG_PROJECT = "mongodb-mongo-master"
+DEFAULT_EVG_PROJECT_CONFIG = "etc/evergreen.yml"
 MAX_LOOKBACK = 50
 DEFAULT_THRESHOLD = 0.95
 EXTERNAL_LOGGERS = [
@@ -33,11 +35,25 @@ class GoodBaseOptions(NamedTuple):
     Options for execution.
 
     * perform_checkout: Run git checkout on the found commit.
+    * max_lookback: Number of commits to scan before giving up.
+    * timeouts_secs: Number of seconds to scan before timing out.
     """
 
     perform_checkout: bool
-    max_lookback: int = MAX_LOOKBACK
+    max_lookback: int
     timeout_secs: Optional[int] = None
+
+
+class RevisionInformation(NamedTuple):
+    """
+    Details about what revision(s) were found.
+
+    revision: Revision of base project.
+    module_revisions: Revisions of any modules associated with the project.
+    """
+
+    revision: str
+    module_revisions: Dict[str, str]
 
 
 class GoodBaseOrchestrator:
@@ -80,7 +96,9 @@ class GoodBaseOrchestrator:
         ) as bar:
             for idx, evg_version in enumerate(bar):
                 if idx > self.options.max_lookback:
-                    LOGGER.debug("Max lookback hit", max_lookback=MAX_LOOKBACK, commit_idx=idx)
+                    LOGGER.debug(
+                        "Max lookback hit", max_lookback=self.options.max_lookback, commit_idx=idx
+                    )
                     return None
 
                 LOGGER.debug("Checking version", commit=evg_version.revision)
@@ -100,7 +118,27 @@ class GoodBaseOrchestrator:
 
         return None
 
-    def checkout_good_base(self, evg_project: str, build_checks: BuildChecks) -> Optional[str]:
+    def checkout_modules(self, evg_project: str, module_revisions: Dict[str, str]) -> None:
+        """
+        Checkout existing modules to the specified revisions.
+
+        :param evg_project: Evergreen project of modules.
+        :param module_revisions: Dictionary of module names and git revisions to check out.
+        """
+        module_locations = self.evg_service.get_module_locations(evg_project)
+        LOGGER.debug(
+            "Checking out modules",
+            module_locations=module_locations,
+            module_revisions=module_revisions,
+        )
+        for module, module_rev in module_revisions.items():
+            directory = Path(module_locations[module]) / module
+            if directory.exists():
+                self.git_service.fetch_and_checkout(module_rev, directory)
+
+    def checkout_good_base(
+        self, evg_project: str, build_checks: BuildChecks
+    ) -> Optional[RevisionInformation]:
         """
         Find the latest git revision that matches the criteria and check it out in git.
 
@@ -109,10 +147,14 @@ class GoodBaseOrchestrator:
         :return: Revision that was checked out, if it exists.
         """
         revision = self.find_revision(evg_project, build_checks)
-        if revision and self.options.perform_checkout:
-            self.git_service.fetch()
-            self.git_service.checkout(revision)
-        return revision
+        if revision:
+            module_revisions = self.evg_service.get_modules_revisions(evg_project, revision)
+            if self.options.perform_checkout:
+                self.git_service.fetch_and_checkout(revision)
+                self.checkout_modules(evg_project, module_revisions)
+
+            return RevisionInformation(revision=revision, module_revisions=module_revisions)
+        return None
 
 
 def configure_logging(verbose: bool) -> None:
@@ -132,7 +174,7 @@ def configure_logging(verbose: bool) -> None:
         logging.getLogger(log_name).setLevel(logging.WARNING)
 
 
-@click.command()
+@click.command(context_settings=dict(max_content_width=100))
 @click.option(
     "--passing-task",
     type=str,
@@ -219,13 +261,19 @@ def main(
     Additionally, you can specify which build variants the criteria should be checked against. By
     default, only builds that end in 'required' will be checked.
 
+    Notes
+
+    If you have any evergreen modules with local checkouts in the location specified in your
+    project's evergreen.yml configuration file. They will automatically be checked out to the
+    revision that was run in Evergreen with the revision of the base project.
+
     Examples
 
     Working on a fix for a task 'replica_sets' on the build variants 'enterprise-rhel-80-64-bit' and
     'enterprise-windows', to ensure the task has been run on those build variants:
 
       \b
-      git co-evg-base --run-task replica_sets --build-variant enterprise-rhel-80-64-bit --build-variant --enterprise-windows
+      git co-evg-base --run-task replica_sets --build-variant enterprise-rhel-80-64-bit --build-variant enterprise-windows
 
     Starting a new change, to ensure that there are no systemic failures on the base commit:
 
@@ -285,7 +333,9 @@ def main(
     revision = orchestrator.checkout_good_base(evg_project, build_checks)
 
     if revision:
-        click.echo(click.style(f"Found revision: {revision}", fg="green"))
+        click.echo(click.style(f"Found revision: {revision.revision}", fg="green"))
+        for module_name, module_revision in revision.module_revisions.items():
+            click.echo(click.style(f"\t{module_name}: {module_revision}", fg="green"))
     else:
         click.echo(click.style("No revision found", fg="red"))
         sys.exit(1)

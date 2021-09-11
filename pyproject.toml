@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "git-co-evg-base"
-version = "0.1.2"
+version = "0.2.0"
 description = "Find a good commit to base your work on"
 authors = ["David Bradford <david.bradford@mongodb.com>"]
 readme = "README.md"
@@ -19,6 +19,7 @@ click = "^8"
 plumbum = "^1.7.0"
 Inject = "^4.3.1"
 structlog = "^21.1.0"
+PyYAML = "^5.4.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
@@ -32,6 +33,7 @@ pytest-pydocstyle = "^2.0"
 pre-commit = "^2.6"
 pytest-isort = "^2.0"
 flake8-bugbear = "^21.4"
+types-PyYAML = "^5.4.10"
 
 [tool.black]
 line-length = 100
