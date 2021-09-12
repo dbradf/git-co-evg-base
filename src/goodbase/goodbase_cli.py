@@ -11,6 +11,8 @@ import inject
 import structlog
 from evergreen import EvergreenApi, RetryingEvergreenApi
 from plumbum import ProcessExecutionError
+from rich.console import Console
+from rich.table import Table
 from structlog.stdlib import LoggerFactory
 
 from goodbase.build_checker import BuildChecks
@@ -73,6 +75,7 @@ class GoodBaseOrchestrator:
         git_service: GitService,
         config_service: ConfigurationService,
         options: GoodBaseOptions,
+        console: Console,
     ) -> None:
         """
         Initialize the orchestrator.
@@ -82,12 +85,14 @@ class GoodBaseOrchestrator:
         :param git_service: Git Service.
         :param config_service: Configuration service.
         :param options: Options for execution.
+        :param console: Rich console to print to.
         """
         self.evg_api = evg_api
         self.evg_service = evg_service
         self.git_service = git_service
         self.config_service = config_service
         self.options = options
+        self.console = console
 
     def find_revision(self, evg_project: str, build_checks: List[BuildChecks]) -> Optional[str]:
         """
@@ -218,6 +223,28 @@ class GoodBaseOrchestrator:
             raise ValueError("Not criteria found")
         return criteria.rules
 
+    def display_criteria(self) -> None:
+        """Display saved criteria."""
+        configuration = self.config_service.get_config()
+        for group in configuration.saved_criteria:
+            table = Table(title=group.name, show_lines=True)
+            table.add_column("Build Variant Regexes")
+            table.add_column("Success %")
+            table.add_column("Run %")
+            table.add_column("Successful Tasks")
+            table.add_column("Run Tasks")
+
+            for rule in group.rules:
+                table.add_row(
+                    "\n".join(rule.build_variant_regex),
+                    f"{rule.success_threshold}" if rule.success_threshold else "",
+                    f"{rule.run_threshold}" if rule.run_threshold else "",
+                    "\n".join(rule.successful_tasks) if rule.successful_tasks else "",
+                    "\n".join(rule.active_tasks) if rule.active_tasks else "",
+                )
+
+            self.console.print(table)
+
 
 def configure_logging(verbose: bool) -> None:
     """
@@ -290,6 +317,7 @@ def configure_logging(verbose: bool) -> None:
     help="Save the specified criteria rules under the specified name for future use.",
 )
 @click.option("--use-criteria", type=str, help="Use previously save criteria rules.")
+@click.option("--list-criteria", is_flag=True, help="Display saved criteria.")
 @click.option(
     "--override",
     is_flag=True,
@@ -310,6 +338,7 @@ def main(
     git_operation: GitAction,
     save_criteria: Optional[str],
     use_criteria: Optional[str],
+    list_criteria: bool,
     override: bool,
     verbose: bool,
 ) -> None:
@@ -399,7 +428,10 @@ def main(
     inject.configure(dependencies)
 
     orchestrator = GoodBaseOrchestrator()
-    if save_criteria:
+    if list_criteria:
+        orchestrator.display_criteria()
+
+    elif save_criteria:
         try:
             orchestrator.save_criteria(save_criteria, build_checks)
         except ValueError as err:

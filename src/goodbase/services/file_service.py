@@ -27,3 +27,8 @@ class FileService:
 
         with open(file_path, "w") as file_contents:
             yaml.safe_dump(contents, file_contents)
+
+    @staticmethod
+    def path_exists(path: Path) -> bool:
+        """Determine if the given path exists."""
+        return path.exists()

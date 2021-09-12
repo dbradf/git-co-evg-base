@@ -19,7 +19,7 @@ class CriteriaGroup(BaseModel):
     name: str
     rules: List[BuildChecks]
 
-    def add_build_checks(self, build_checks: BuildChecks, override: bool) -> None:
+    def add_build_checks(self, build_checks: BuildChecks, override: bool = False) -> None:
         """
         Add the given build checks to this criteria group.
 
@@ -72,7 +72,7 @@ class CriteriaConfiguration(BaseModel):
         self.saved_criteria = other_criteria
         self.saved_criteria.append(group)
 
-    def add_criteria(self, name: str, build_checks: BuildChecks, override: bool) -> None:
+    def add_criteria(self, name: str, build_checks: BuildChecks, override: bool = False) -> None:
         """
         Add the given criteria to the specified criteria group.
 
@@ -99,7 +99,7 @@ class ConfigurationService:
 
     def get_config(self) -> CriteriaConfiguration:
         """Get the saved configuration or create a new empty configuration."""
-        if CONFIG_FILE_LOCATION.exists():
+        if self.file_service.path_exists(CONFIG_FILE_LOCATION):
             config_file_contents = self.file_service.read_yaml_file(CONFIG_FILE_LOCATION)
             return CriteriaConfiguration(**config_file_contents)
         else:
@@ -111,4 +111,4 @@ class ConfigurationService:
 
         :param config: Configuration to save.
         """
-        self.file_service.write_yaml_file(CONFIG_FILE_LOCATION, config.dict())
+        self.file_service.write_yaml_file(CONFIG_FILE_LOCATION, config.dict(exclude_none=True))

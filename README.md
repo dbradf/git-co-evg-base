@@ -48,6 +48,8 @@ $ pipx install git-co-evg-base
 
 ## Usage
 
+Detailed usage documentation can be found [here](https://github.com/dbradf/git-co-evg-base/tree/master/docs/usage.md).
+
 ```
 Usage: git-co-evg-base [OPTIONS]
 
@@ -94,7 +96,7 @@ Examples:
   Starting a new change, to ensure that there are no systemic failures on the base commit:
 
       git co-evg-base --pass-threshold 0.98
-
+      
 Options:
   --passing-task TEXT             Specify a task that needs to be passing (can be specified
                                   multiple times).
@@ -104,11 +106,17 @@ Options:
   --pass-threshold FLOAT          Specify the percentage of tasks that need to be successful.
   --evg-config-file PATH          File containing evergreen authentication information.
   --evg-project TEXT              Evergreen project to query against.
-  --build-variant TEXT            Build variant to check (can be specified multiple times).
+  --build-variant TEXT            Regex of Build variants to check (can be specified multiple
+                                  times).
   --commit-lookback INTEGER       Number of commits to check before giving up
   --timeout-secs INTEGER          Number of seconds to search for before giving up.
   --git-operation [checkout|rebase|merge|none]
                                   Git operations to perform with found commit [default=checkout].
+  --save-criteria TEXT            Save the specified criteria rules under the specified name for
+                                  future use.
+  --use-criteria TEXT             Use previously save criteria rules.
+  --list-criteria                 Display saved criteria.
+  --override                      Override saved conflicting save criteria rules.
   --verbose                       Enable debug logging.
   --help                          Show this message and exit.
 ```
