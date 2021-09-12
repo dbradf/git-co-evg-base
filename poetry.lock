@@ -679,10 +679,18 @@ six = ">=1.9.0,<2"
 docs = ["proselint (>=0.10.2)", "sphinx (>=3)", "sphinx-argparse (>=0.2.5)", "sphinx-rtd-theme (>=0.4.3)", "towncrier (>=19.9.0rc1)"]
 testing = ["coverage (>=4)", "coverage-enable-subprocess (>=1)", "flaky (>=3)", "pytest (>=4)", "pytest-env (>=0.6.2)", "pytest-freezegun (>=0.4.1)", "pytest-mock (>=2)", "pytest-randomly (>=1)", "pytest-timeout (>=1)", "packaging (>=20.0)"]
 
+[[package]]
+name = "xdg"
+version = "5.1.1"
+description = "Variables defined by the XDG Base Directory Specification"
+category = "main"
+optional = false
+python-versions = ">=3.6,<4.0"
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "b662efd52661c3a18f833335fb2bc9406068a59a7e42a0b7cad463cece001361"
+content-hash = "49132ae95d4235fe50f8407a37a0e6bb3348a9bc19f4751bbe1691b755f28b10"
 
 [metadata.files]
 atomicwrites = [
@@ -1083,4 +1091,8 @@ urllib3 = [
 virtualenv = [
     {file = "virtualenv-20.7.2-py2.py3-none-any.whl", hash = "sha256:e4670891b3a03eb071748c569a87cceaefbf643c5bac46d996c5a45c34aa0f06"},
     {file = "virtualenv-20.7.2.tar.gz", hash = "sha256:9ef4e8ee4710826e98ff3075c9a4739e2cb1040de6a2a8d35db0055840dc96a0"},
+]
+xdg = [
+    {file = "xdg-5.1.1-py3-none-any.whl", hash = "sha256:865a7b56ed1d4cd2fce2ead1eddf97360843619757f473cd90b75f1817ca541d"},
+    {file = "xdg-5.1.1.tar.gz", hash = "sha256:aa619f26ccec6088b2a6018721d4ee86e602099b24644a90a8d3308a25acd06c"},
 ]

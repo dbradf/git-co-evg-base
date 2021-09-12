@@ -30,7 +30,7 @@ def build_mock_task(name: str, status: TaskStatus) -> Task:
 
 
 def build_mock_build(name: str, task_list: List[Task]) -> Build:
-    mock_build = MagicMock(spec_set=Build, display_name=name)
+    mock_build = MagicMock(spec_set=Build, display_name=name, build_variant=name)
     mock_build.get_tasks.return_value = task_list
     return mock_build
 
@@ -85,7 +85,7 @@ def evergreen_api():
 
 @pytest.fixture()
 def evg_service(evergreen_api, file_service):
-    evg_service = under_test.EvergreenService(evergreen_api, lambda _: True, file_service)
+    evg_service = under_test.EvergreenService(evergreen_api, file_service)
     return evg_service
 
 
@@ -164,10 +164,10 @@ class TestGetBuildStatusesForVersion:
             for i in range(n_builds)
         }
         mock_task_list_for_build(evg_service, mock_build_map)
-        set_build_variant_predicate(evg_service, lambda b: b.startswith("build"))
+        build_checks = [BuildChecks(build_variant_regex=["^build"])]
         mock_version = build_mock_version([build_name for build_name in mock_build_map.keys()])
 
-        build_status_list = evg_service.get_build_statuses_for_version(mock_version)
+        build_status_list = evg_service.get_build_statuses_for_version(mock_version, build_checks)
 
         assert len(build_status_list) == n_builds
 
@@ -178,10 +178,10 @@ class TestGetBuildStatusesForVersion:
             for i in range(n_builds)
         }
         mock_task_list_for_build(evg_service, mock_build_map)
-        set_build_variant_predicate(evg_service, lambda b: b.startswith("hello_world"))
+        build_checks = [BuildChecks(build_variant_regex=["^hello_world"])]
         mock_version = build_mock_version([build_name for build_name in mock_build_map.keys()])
 
-        build_status_list = evg_service.get_build_statuses_for_version(mock_version)
+        build_status_list = evg_service.get_build_statuses_for_version(mock_version, build_checks)
 
         assert len(build_status_list) == 0
 
@@ -192,10 +192,10 @@ class TestGetBuildStatusesForVersion:
             for i in range(n_builds)
         }
         mock_task_list_for_build(evg_service, mock_build_map)
-        set_build_variant_predicate(evg_service, lambda b: b.startswith("build_1"))
+        build_checks = [BuildChecks(build_variant_regex=["^build_1"])]
         mock_version = build_mock_version([build_name for build_name in mock_build_map.keys()])
 
-        build_status_list = evg_service.get_build_statuses_for_version(mock_version)
+        build_status_list = evg_service.get_build_statuses_for_version(mock_version, build_checks)
 
         assert len(build_status_list) == 11
 
@@ -209,9 +209,9 @@ class TestCheckVersion:
         }
         mock_task_list_for_build(evg_service, mock_build_map)
         mock_version = build_mock_version([build_name for build_name in mock_build_map.keys()])
-        build_checks = BuildChecks(run_threshold=0.9)
+        build_checks = BuildChecks(build_variant_regex=[".*"], run_threshold=0.9)
 
-        result = evg_service.check_version(mock_version, build_checks)
+        result = evg_service.check_version(mock_version, [build_checks])
 
         assert not result
 
@@ -223,9 +223,9 @@ class TestCheckVersion:
         }
         mock_task_list_for_build(evg_service, mock_build_map)
         mock_version = build_mock_version([build_name for build_name in mock_build_map.keys()])
-        build_checks = BuildChecks(run_threshold=0.9)
+        build_checks = BuildChecks(build_variant_regex=[".*"], run_threshold=0.9)
 
-        result = evg_service.check_version(mock_version, build_checks)
+        result = evg_service.check_version(mock_version, [build_checks])
 
         assert result
 
@@ -237,9 +237,9 @@ class TestCheckVersion:
         }
         mock_task_list_for_build(evg_service, mock_build_map)
         mock_version = build_mock_version([build_name for build_name in mock_build_map.keys()])
-        build_checks = BuildChecks(run_threshold=0.9)
+        build_checks = BuildChecks(build_variant_regex=[".*"], run_threshold=0.9)
 
-        result = evg_service.check_version(mock_version, build_checks)
+        result = evg_service.check_version(mock_version, [build_checks])
 
         assert not result
 
@@ -250,11 +250,10 @@ class TestCheckVersion:
             for i in range(n_builds)
         }
         mock_task_list_for_build(evg_service, mock_build_map)
-        set_build_variant_predicate(evg_service, lambda b: b == "build_0")
         mock_version = build_mock_version([build_name for build_name in mock_build_map.keys()])
-        build_checks = BuildChecks(run_threshold=0.9)
+        build_checks = BuildChecks(build_variant_regex=["^build_0$"], run_threshold=0.9)
 
-        result = evg_service.check_version(mock_version, build_checks)
+        result = evg_service.check_version(mock_version, [build_checks])
 
         assert result
 

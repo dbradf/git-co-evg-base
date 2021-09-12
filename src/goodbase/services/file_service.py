@@ -18,3 +18,12 @@ class FileService:
         """
         with open(file_path) as file_contents:
             return yaml.safe_load(file_contents)
+
+    @staticmethod
+    def write_yaml_file(file_path: Path, contents: Dict[str, Any]) -> None:
+        """Write the given contents to the specified file."""
+        if not file_path.parent.exists():
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(file_path, "w") as file_contents:
+            yaml.safe_dump(contents, file_contents)

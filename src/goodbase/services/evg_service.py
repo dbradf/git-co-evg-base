@@ -1,7 +1,7 @@
 """Service to interact with evergreen."""
 from concurrent.futures import ThreadPoolExecutor as Executor
 from pathlib import Path
-from typing import Callable, Dict, List
+from typing import Dict, List
 
 import inject
 from evergreen import EvergreenApi, Version
@@ -12,25 +12,19 @@ from goodbase.services.file_service import FileService
 
 N_THREADS = 16
 
-BuildVariantPredicate = Callable[[str], bool]
-
 
 class EvergreenService:
     """A service to interact with Evergreen."""
 
     @inject.autoparams()
-    def __init__(
-        self, evg_api: EvergreenApi, bv_predicate: BuildVariantPredicate, file_service: FileService
-    ) -> None:
+    def __init__(self, evg_api: EvergreenApi, file_service: FileService) -> None:
         """
         Initialize the service.
 
         :param evg_api: Evergreen API client.
-        :param bv_predicate: Predicate to check with build variants to check.
         :param file_service: File service.
         """
         self.evg_api = evg_api
-        self.bv_predicate = bv_predicate
         self.file_service = file_service
 
     def analyze_build(self, build_id: str) -> BuildStatus:
@@ -48,12 +42,13 @@ class EvergreenService:
 
         return BuildStatus(
             build_name=build.display_name,
+            build_variant=build.build_variant,
             successful_tasks=successful_tasks,
             inactive_tasks=inactive_tasks,
             all_tasks=all_tasks,
         )
 
-    def check_version(self, evg_version: Version, build_checks: BuildChecks) -> bool:
+    def check_version(self, evg_version: Version, build_checks: List[BuildChecks]) -> bool:
         """
         Check if the given version meets the specified criteria.
 
@@ -61,21 +56,24 @@ class EvergreenService:
         :param build_checks: Build criteria to use.
         :return: True if the version matches the specified criteria.
         """
-        build_status_list = self.get_build_statuses_for_version(evg_version)
-        return all(build_checks.check(bs) for bs in build_status_list)
+        build_status_list = self.get_build_statuses_for_version(evg_version, build_checks)
+        return all(bc.check(bs) for bs in build_status_list for bc in build_checks)
 
-    def get_build_statuses_for_version(self, evg_version: Version) -> List[BuildStatus]:
+    def get_build_statuses_for_version(
+        self, evg_version: Version, build_checks: List[BuildChecks]
+    ) -> List[BuildStatus]:
         """
         Get the build status for this version that match the predicate.
 
         :param evg_version: Evergreen version to check.
+        :param build_checks: Build criteria to use.
         :return: List of build statuses.
         """
         with Executor(max_workers=N_THREADS) as exe:
             jobs = [
                 exe.submit(self.analyze_build, build_id)
                 for bv, build_id in evg_version.build_variants_map.items()
-                if self.bv_predicate(bv)
+                if any(bc.should_apply(bv) for bc in build_checks)
             ]
 
         return [j.result() for j in jobs]
