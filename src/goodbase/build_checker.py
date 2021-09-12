@@ -1,29 +1,40 @@
 """Criteria for checking an evergreen build."""
-from dataclasses import dataclass
-from typing import Optional, Set
+import re
+from typing import List, Optional, Set
 
 import structlog
+from pydantic import BaseModel
 
 from goodbase.models.build_status import BuildStatus
 
 LOGGER = structlog.get_logger(__name__)
 
 
-@dataclass
-class BuildChecks:
+class BuildChecks(BaseModel):
     """
     Set of checks to perform to check build criteria.
 
+    build_variant_regex: List of build variant regexes to which checks should apply.
     success_threshold: Percentage of tasks that need to pass to use the build.
     run_threshold: Percentage of tasks that need to have run to use the build.
     successful_tasks: Set of tasks that need to have passed to use the build.
     active_tasks: Set of tasks that need to have run to use the build.
     """
 
+    build_variant_regex: List[str]
     success_threshold: Optional[float] = None
     run_threshold: Optional[float] = None
     successful_tasks: Optional[Set[str]] = None
     active_tasks: Optional[Set[str]] = None
+
+    def should_apply(self, build_variant: str) -> bool:
+        """
+        Check if the given build variant should apply to these checks.
+
+        :param build_variant: Name of build variant to check.
+        :return: True if these checks apply to the given build variant.
+        """
+        return any(re.match(bv_regex, build_variant) for bv_regex in self.build_variant_regex)
 
     def check(self, build_status: BuildStatus) -> bool:
         """
@@ -32,6 +43,9 @@ class BuildChecks:
         :param build_status: Status of build to check.
         :return: True if the build matches the criteria.
         """
+        if not self.should_apply(build_status.build_variant):
+            return True
+
         if self.success_threshold and build_status.success_pct() < self.success_threshold:
             LOGGER.debug(
                 "Unmet criteria, success_threshold",

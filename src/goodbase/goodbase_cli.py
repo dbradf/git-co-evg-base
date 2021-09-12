@@ -11,10 +11,13 @@ import inject
 import structlog
 from evergreen import EvergreenApi, RetryingEvergreenApi
 from plumbum import ProcessExecutionError
+from rich.console import Console
+from rich.table import Table
 from structlog.stdlib import LoggerFactory
 
 from goodbase.build_checker import BuildChecks
-from goodbase.services.evg_service import BuildVariantPredicate, EvergreenService
+from goodbase.services.config_service import ConfigurationService
+from goodbase.services.evg_service import EvergreenService
 from goodbase.services.git_service import GitAction, GitService
 
 LOGGER = structlog.get_logger(__name__)
@@ -37,11 +40,13 @@ class GoodBaseOptions(NamedTuple):
 
     * max_lookback: Number of commits to scan before giving up.
     * operation: Type of git operation to perform.
+    * override_criteria: Override conflicting save criteria.
     * timeouts_secs: Number of seconds to scan before timing out.
     """
 
     max_lookback: int
     operation: GitAction
+    override_criteria: bool
     timeout_secs: Optional[int] = None
 
 
@@ -68,7 +73,9 @@ class GoodBaseOrchestrator:
         evg_api: EvergreenApi,
         evg_service: EvergreenService,
         git_service: GitService,
+        config_service: ConfigurationService,
         options: GoodBaseOptions,
+        console: Console,
     ) -> None:
         """
         Initialize the orchestrator.
@@ -76,14 +83,18 @@ class GoodBaseOrchestrator:
         :param evg_api: Evergreen API Client.
         :param evg_service:  Evergreen Service.
         :param git_service: Git Service.
+        :param config_service: Configuration service.
         :param options: Options for execution.
+        :param console: Rich console to print to.
         """
         self.evg_api = evg_api
         self.evg_service = evg_service
         self.git_service = git_service
+        self.config_service = config_service
         self.options = options
+        self.console = console
 
-    def find_revision(self, evg_project: str, build_checks: BuildChecks) -> Optional[str]:
+    def find_revision(self, evg_project: str, build_checks: List[BuildChecks]) -> Optional[str]:
         """
         Iterate through revisions until one is found that matches the given criteria.
 
@@ -166,7 +177,7 @@ class GoodBaseOrchestrator:
         return errors_encountered
 
     def checkout_good_base(
-        self, evg_project: str, build_checks: BuildChecks
+        self, evg_project: str, build_checks: List[BuildChecks]
     ) -> Optional[RevisionInformation]:
         """
         Find the latest git revision that matches the criteria and check it out in git.
@@ -187,6 +198,52 @@ class GoodBaseOrchestrator:
                 revision=revision, module_revisions=module_revisions, errors=errors_encountered
             )
         return None
+
+    def save_criteria(self, name: str, build_checks: BuildChecks) -> None:
+        """
+        Save the given criteria under the given name.
+
+        :param name: Name to save criteria under.
+        :param build_checks: Criteria to save.
+        """
+        configuration = self.config_service.get_config()
+        configuration.add_criteria(name, build_checks, self.options.override_criteria)
+        self.config_service.save_config(configuration)
+
+    def lookup_criteria(self, name: str) -> List[BuildChecks]:
+        """
+        Lookup the specified criteria in the config file.
+
+        :param name: Name of criteria to lookup.
+        :return: Saved criteria.
+        """
+        configuration = self.config_service.get_config()
+        criteria = configuration.get_criteria_group(name)
+        if not criteria.rules:
+            raise ValueError("Not criteria found")
+        return criteria.rules
+
+    def display_criteria(self) -> None:
+        """Display saved criteria."""
+        configuration = self.config_service.get_config()
+        for group in configuration.saved_criteria:
+            table = Table(title=group.name, show_lines=True)
+            table.add_column("Build Variant Regexes")
+            table.add_column("Success %")
+            table.add_column("Run %")
+            table.add_column("Successful Tasks")
+            table.add_column("Run Tasks")
+
+            for rule in group.rules:
+                table.add_row(
+                    "\n".join(rule.build_variant_regex),
+                    f"{rule.success_threshold}" if rule.success_threshold else "",
+                    f"{rule.run_threshold}" if rule.run_threshold else "",
+                    "\n".join(rule.successful_tasks) if rule.successful_tasks else "",
+                    "\n".join(rule.active_tasks) if rule.active_tasks else "",
+                )
+
+            self.console.print(table)
 
 
 def configure_logging(verbose: bool) -> None:
@@ -239,7 +296,7 @@ def configure_logging(verbose: bool) -> None:
 @click.option(
     "--build-variant",
     multiple=True,
-    help="Build variant to check (can be specified multiple times).",
+    help="Regex of Build variants to check (can be specified multiple times).",
 )
 @click.option(
     "--commit-lookback",
@@ -254,6 +311,19 @@ def configure_logging(verbose: bool) -> None:
     default=GitAction.CHECKOUT,
     help="Git operations to perform with found commit [default=checkout].",
 )
+@click.option(
+    "--save-criteria",
+    type=str,
+    help="Save the specified criteria rules under the specified name for future use.",
+)
+@click.option("--use-criteria", type=str, help="Use previously save criteria rules.")
+@click.option("--list-criteria", is_flag=True, help="Display saved criteria.")
+@click.option(
+    "--override",
+    is_flag=True,
+    default=False,
+    help="Override saved conflicting save criteria rules.",
+)
 @click.option("--verbose", is_flag=True, default=False, help="Enable debug logging.")
 def main(
     passing_task: List[str],
@@ -266,6 +336,10 @@ def main(
     commit_lookback: int,
     timeout_secs: Optional[int],
     git_operation: GitAction,
+    save_criteria: Optional[str],
+    use_criteria: Optional[str],
+    list_criteria: bool,
+    override: bool,
     verbose: bool,
 ) -> None:
     """
@@ -321,10 +395,16 @@ def main(
     options = GoodBaseOptions(
         max_lookback=commit_lookback,
         operation=git_operation,
+        override_criteria=override,
         timeout_secs=timeout_secs,
     )
 
-    build_checks = BuildChecks()
+    build_variant_checks = [".*-required$"]
+
+    if build_variant:
+        build_variant_checks = build_variant
+
+    build_checks = BuildChecks(build_variant_regex=build_variant_checks)
     if pass_threshold is not None:
         build_checks.success_threshold = pass_threshold
 
@@ -341,48 +421,57 @@ def main(
     if not any([pass_threshold, run_threshold, passing_task, run_task]):
         build_checks.success_threshold = DEFAULT_THRESHOLD
 
-    LOGGER.debug("criteria", criteria=build_checks)
-
-    if build_variant:
-        build_variant_set = set(build_variant)
-
-        def bv_check(bv: str) -> bool:
-            return bv in build_variant_set
-
-    else:
-
-        def bv_check(bv: str) -> bool:
-            return bv.endswith("required")
-
     def dependencies(binder: inject.Binder) -> None:
         binder.bind(EvergreenApi, evg_api)
-        binder.bind(BuildVariantPredicate, bv_check)
         binder.bind(GoodBaseOptions, options)
 
     inject.configure(dependencies)
 
     orchestrator = GoodBaseOrchestrator()
-    revision = orchestrator.checkout_good_base(evg_project, build_checks)
+    if list_criteria:
+        orchestrator.display_criteria()
 
-    if revision:
-        click.echo(click.style(f"Found revision: {revision.revision}", fg="green"))
-        for module_name, module_revision in revision.module_revisions.items():
-            click.echo(click.style(f"\t{module_name}: {module_revision}", fg="green"))
+    elif save_criteria:
+        try:
+            orchestrator.save_criteria(save_criteria, build_checks)
+        except ValueError as err:
+            click.echo(click.style(f"Could not save: {save_criteria}", fg="red"))
+            click.echo(click.style(str(err), fg="red"))
+            sys.exit(1)
 
-        if revision.errors:
-            click.echo(
-                click.style(
-                    f"Encountered {len(revision.errors)} errors performing git operations",
-                    fg="yellow",
-                    bold=True,
-                )
-            )
-            click.echo(click.style("Conflicts may need to be manually resolved."))
-            for module, errmsg in revision.errors.items():
-                click.echo(click.style(f"\t{module}: {errmsg}", fg="yellow"))
     else:
-        click.echo(click.style("No revision found", fg="red"))
-        sys.exit(1)
+        criteria = [build_checks]
+        if use_criteria:
+            try:
+                criteria = orchestrator.lookup_criteria(use_criteria)
+            except ValueError as err:
+                click.echo(click.style(f"Could not use: {save_criteria}", fg="red"))
+                click.echo(click.style(str(err), fg="red"))
+                sys.exit(1)
+
+        LOGGER.debug("criteria", criteria=build_checks)
+
+        revision = orchestrator.checkout_good_base(evg_project, criteria)
+
+        if revision:
+            click.echo(click.style(f"Found revision: {revision.revision}", fg="green"))
+            for module_name, module_revision in revision.module_revisions.items():
+                click.echo(click.style(f"\t{module_name}: {module_revision}", fg="green"))
+
+            if revision.errors:
+                click.echo(
+                    click.style(
+                        f"Encountered {len(revision.errors)} errors performing git operations",
+                        fg="yellow",
+                        bold=True,
+                    )
+                )
+                click.echo(click.style("Conflicts may need to be manually resolved."))
+                for module, errmsg in revision.errors.items():
+                    click.echo(click.style(f"\t{module}: {errmsg}", fg="yellow"))
+        else:
+            click.echo(click.style("No revision found", fg="red"))
+            sys.exit(1)
 
 
 if __name__ == "__main__":

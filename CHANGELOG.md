@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.3.0 -2021-09-11
+## 0.4.0 - 2021-09-12
+- Add support for saving and loading criteria.
+
+## 0.3.0 - 2021-09-11
 - Add support for rebase and merge.
 
 ## 0.2.0 - 2021-09-11

@@ -9,12 +9,14 @@ class BuildStatus:
     A summary of the results of an evergreen build.
 
     build_name: Name of build results are for.
+    build_variant: Name of build variant results are for.
     successful_task: Set of tasks that were successful.
     inactive_tasks: Set of tasks that have not be run.
     all_tasks: Set of all tasks in the build.
     """
 
     build_name: str
+    build_variant: str
     successful_tasks: Set[str]
     inactive_tasks: Set[str]
     all_tasks: Set[str]
