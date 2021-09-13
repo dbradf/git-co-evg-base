@@ -75,7 +75,7 @@ class GoodBaseOrchestrator:
         evg_service: EvergreenService,
         git_service: GitService,
         config_service: ConfigurationService,
-            file_service: FileService,
+        file_service: FileService,
         options: GoodBaseOptions,
         console: Console,
     ) -> None:
@@ -355,9 +355,13 @@ def configure_logging(verbose: bool) -> None:
     default=False,
     help="Override saved conflicting save criteria rules.",
 )
-@click.option("--export-criteria", multiple=True, help="Specify saved criteria to export to a file.")
+@click.option(
+    "--export-criteria", multiple=True, help="Specify saved criteria to export to a file."
+)
 @click.option("--export-file", type=click.Path(), help="File to write exported rules to.")
-@click.option("--import-criteria", type=click.Path(exists=True), help="Import previously exported criteria.")
+@click.option(
+    "--import-criteria", type=click.Path(exists=True), help="Import previously exported criteria."
+)
 @click.option("--verbose", is_flag=True, default=False, help="Enable debug logging.")
 def main(
     passing_task: List[str],
@@ -478,7 +482,9 @@ def main(
 
     elif export_criteria:
         if not export_file:
-            click.echo(click.style("Export file needs to be specified with `--export-file`", fg="red"))
+            click.echo(
+                click.style("Export file needs to be specified with `--export-file`", fg="red")
+            )
             sys.exit(1)
 
         orchestrator.export_criteria(export_criteria, Path(export_file))
