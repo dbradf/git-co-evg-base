@@ -16,8 +16,9 @@ from rich.table import Table
 from structlog.stdlib import LoggerFactory
 
 from goodbase.build_checker import BuildChecks
-from goodbase.services.config_service import ConfigurationService
+from goodbase.services.config_service import ConfigurationService, CriteriaConfiguration
 from goodbase.services.evg_service import EvergreenService
+from goodbase.services.file_service import FileService
 from goodbase.services.git_service import GitAction, GitService
 
 LOGGER = structlog.get_logger(__name__)
@@ -74,6 +75,7 @@ class GoodBaseOrchestrator:
         evg_service: EvergreenService,
         git_service: GitService,
         config_service: ConfigurationService,
+            file_service: FileService,
         options: GoodBaseOptions,
         console: Console,
     ) -> None:
@@ -84,6 +86,7 @@ class GoodBaseOrchestrator:
         :param evg_service:  Evergreen Service.
         :param git_service: Git Service.
         :param config_service: Configuration service.
+        :param file_service: File service.
         :param options: Options for execution.
         :param console: Rich console to print to.
         """
@@ -91,6 +94,7 @@ class GoodBaseOrchestrator:
         self.evg_service = evg_service
         self.git_service = git_service
         self.config_service = config_service
+        self.file_service = file_service
         self.options = options
         self.console = console
 
@@ -223,6 +227,33 @@ class GoodBaseOrchestrator:
             raise ValueError("Not criteria found")
         return criteria.rules
 
+    def export_criteria(self, rules: List[str], destination: Path) -> None:
+        """
+        Export the given rules to the destination file.
+
+        :param rules: Names of rules to export.
+        :param destination: Path of file to export to.
+        """
+        rules_set = set(rules)
+        configuration = self.config_service.get_config()
+        rules_to_export = [rule for rule in configuration.saved_criteria if rule.name in rules_set]
+        export_config = CriteriaConfiguration(saved_criteria=rules_to_export)
+        self.file_service.write_yaml_file(destination, export_config.dict(exclude_none=True))
+
+    def import_criteria(self, import_file: Path) -> None:
+        """
+        Import rules from the given file.
+
+        :param import_file: File containing rules to import.
+        """
+        configuration = self.config_service.get_config()
+        import_file_contents = self.file_service.read_yaml_file(import_file)
+        import_criteria = CriteriaConfiguration(**import_file_contents)
+        for rule in import_criteria.saved_criteria:
+            for criteria in rule.rules:
+                configuration.add_criteria(rule.name, criteria, self.options.override_criteria)
+        self.config_service.save_config(configuration)
+
     def display_criteria(self) -> None:
         """Display saved criteria."""
         configuration = self.config_service.get_config()
@@ -324,6 +355,9 @@ def configure_logging(verbose: bool) -> None:
     default=False,
     help="Override saved conflicting save criteria rules.",
 )
+@click.option("--export-criteria", multiple=True, help="Specify saved criteria to export to a file.")
+@click.option("--export-file", type=click.Path(), help="File to write exported rules to.")
+@click.option("--import-criteria", type=click.Path(exists=True), help="Import previously exported criteria.")
 @click.option("--verbose", is_flag=True, default=False, help="Enable debug logging.")
 def main(
     passing_task: List[str],
@@ -339,6 +373,9 @@ def main(
     save_criteria: Optional[str],
     use_criteria: Optional[str],
     list_criteria: bool,
+    export_criteria: List[str],
+    export_file: str,
+    import_criteria: Optional[str],
     override: bool,
     verbose: bool,
 ) -> None:
@@ -436,6 +473,21 @@ def main(
             orchestrator.save_criteria(save_criteria, build_checks)
         except ValueError as err:
             click.echo(click.style(f"Could not save: {save_criteria}", fg="red"))
+            click.echo(click.style(str(err), fg="red"))
+            sys.exit(1)
+
+    elif export_criteria:
+        if not export_file:
+            click.echo(click.style("Export file needs to be specified with `--export-file`", fg="red"))
+            sys.exit(1)
+
+        orchestrator.export_criteria(export_criteria, Path(export_file))
+
+    elif import_criteria:
+        try:
+            orchestrator.import_criteria(Path(import_criteria))
+        except ValueError as err:
+            click.echo(click.style(f"Could not import from: {import_criteria}", fg="red"))
             click.echo(click.style(str(err), fg="red"))
             sys.exit(1)
 

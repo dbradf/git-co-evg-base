@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.0 - 2021-09-12
+- Add support for import and exporting rules.
+
 ## 0.4.0 - 2021-09-12
 - Add support for saving and loading criteria.
 
