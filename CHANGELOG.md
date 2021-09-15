@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1 - 2021-09-14
+- Add branch name option to git checkout operation.
+- Add option to limit lookback to a specific commit.
+
 ## 0.5.0 - 2021-09-12
 - Add support for import and exporting rules.
 

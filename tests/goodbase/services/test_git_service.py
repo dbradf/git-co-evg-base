@@ -32,7 +32,16 @@ class TestPerformAction:
         evg_service.perform_action(under_test.GitAction.CHECKOUT, revision)
 
         mock_git.assert_git_call(("fetch", "origin"))
-        mock_git.assert_git_call(("checkout", revision))
+        mock_git.assert_git_call(["checkout", revision])
+
+    def test_checkout_action_with_branch_should_call_git_checkout_with_branch(
+        self, evg_service, mock_git
+    ):
+        revision = "revision123"
+        evg_service.perform_action(under_test.GitAction.CHECKOUT, revision, branch_name="my-branch")
+
+        mock_git.assert_git_call(("fetch", "origin"))
+        mock_git.assert_git_call(["checkout", "-b", "my-branch", revision])
 
     def test_rebase_action_should_call_git_rebase(self, evg_service, mock_git):
         revision = "revision123"

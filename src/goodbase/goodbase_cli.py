@@ -40,15 +40,46 @@ class GoodBaseOptions(NamedTuple):
     Options for execution.
 
     * max_lookback: Number of commits to scan before giving up.
+    * commit_limit: Oldest commit to look at before giving up.
     * operation: Type of git operation to perform.
     * override_criteria: Override conflicting save criteria.
     * timeouts_secs: Number of seconds to scan before timing out.
+    * branch_name: Name of branch to create on checkout.
     """
 
     max_lookback: int
+    commit_limit: Optional[str]
     operation: GitAction
     override_criteria: bool
     timeout_secs: Optional[int] = None
+    branch_name: Optional[str] = None
+
+    def lookback_limit_hit(self, index: int, revision: str, elapsed_seconds: float) -> bool:
+        """
+        Determine if the limits of looking back have been hit.
+
+        :param index: Index of version being checked.
+        :param revision: git revision being checked.
+        :param elapsed_seconds: Number of seconds that have passed since operation started.
+        :return: True if we have hit the limit of version of check.
+        """
+        if index > self.max_lookback:
+            LOGGER.debug("Max lookback hit", max_lookback=self.max_lookback, commit_idx=index)
+            return True
+
+        if self.commit_limit and revision.startswith(self.commit_limit):
+            LOGGER.debug("Commit limit hit", commit_limit=self.commit_limit)
+            return True
+
+        if self.timeout_secs and elapsed_seconds > self.timeout_secs:
+            LOGGER.debug(
+                "Timeout hit",
+                timeout_secs=self.timeout_secs,
+                elapsed_seconds=elapsed_seconds,
+            )
+            return True
+
+        return False
 
 
 class RevisionInformation(NamedTuple):
@@ -113,26 +144,15 @@ class GoodBaseOrchestrator:
             label=f"Searching {evg_project} revisions",
         ) as bar:
             for idx, evg_version in enumerate(bar):
-                if idx > self.options.max_lookback:
-                    LOGGER.debug(
-                        "Max lookback hit", max_lookback=self.options.max_lookback, commit_idx=idx
-                    )
+                current_time = perf_counter()
+                elapsed_time = current_time - start_time
+                if self.options.lookback_limit_hit(idx, evg_version.revision, elapsed_time):
                     return None
 
                 LOGGER.debug("Checking version", commit=evg_version.revision)
 
                 if self.evg_service.check_version(evg_version, build_checks):
                     return evg_version.revision
-
-                current_time = perf_counter()
-                elapsed_time = current_time - start_time
-                if self.options.timeout_secs and elapsed_time > self.options.timeout_secs:
-                    LOGGER.debug(
-                        "Timeout hit",
-                        timeout_secs=self.options.timeout_secs,
-                        elapsed_time=elapsed_time,
-                    )
-                    return None
 
         return None
 
@@ -148,7 +168,9 @@ class GoodBaseOrchestrator:
         :return: Error message if an error was encountered.
         """
         try:
-            self.git_service.perform_action(operation, revision, directory)
+            self.git_service.perform_action(
+                operation, revision, directory, self.options.branch_name
+            )
         except ProcessExecutionError:
             LOGGER.warning("Error encountered during git operation", exc_info=True)
             return f"Encountered error performing '{operation}' on '{revision}'"
@@ -337,11 +359,17 @@ def configure_logging(verbose: bool) -> None:
 )
 @click.option("--timeout-secs", type=int, help="Number of seconds to search for before giving up.")
 @click.option(
+    "--commit-limit",
+    type=str,
+    help="Oldest commit to check before giving up.",
+)
+@click.option(
     "--git-operation",
     type=click.Choice([a.value for a in GitAction]),
     default=GitAction.CHECKOUT,
     help="Git operations to perform with found commit [default=checkout].",
 )
+@click.option("-b", "--branch", help="Name of branch to create on checkout.")
 @click.option(
     "--save-criteria",
     type=str,
@@ -372,8 +400,10 @@ def main(
     evg_project: str,
     build_variant: List[str],
     commit_lookback: int,
+    commit_limit: Optional[str],
     timeout_secs: Optional[int],
     git_operation: GitAction,
+    branch: Optional[str],
     save_criteria: Optional[str],
     use_criteria: Optional[str],
     list_criteria: bool,
@@ -435,9 +465,11 @@ def main(
 
     options = GoodBaseOptions(
         max_lookback=commit_lookback,
+        commit_limit=commit_limit,
         operation=git_operation,
         override_criteria=override,
         timeout_secs=timeout_secs,
+        branch_name=branch,
     )
 
     build_variant_checks = [".*-required$"]
