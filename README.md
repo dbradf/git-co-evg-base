@@ -110,13 +110,18 @@ Options:
                                   times).
   --commit-lookback INTEGER       Number of commits to check before giving up
   --timeout-secs INTEGER          Number of seconds to search for before giving up.
+  --commit-limit TEXT             Oldest commit to check before giving up.
   --git-operation [checkout|rebase|merge|none]
                                   Git operations to perform with found commit [default=checkout].
+  -b, --branch TEXT               Name of branch to create on checkout.
   --save-criteria TEXT            Save the specified criteria rules under the specified name for
                                   future use.
   --use-criteria TEXT             Use previously save criteria rules.
   --list-criteria                 Display saved criteria.
   --override                      Override saved conflicting save criteria rules.
+  --export-criteria TEXT          Specify saved criteria to export to a file.
+  --export-file PATH              File to write exported rules to.
+  --import-criteria PATH          Import previously exported criteria.
   --verbose                       Enable debug logging.
   --help                          Show this message and exit.
 ```
