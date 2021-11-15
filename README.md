@@ -122,6 +122,8 @@ Options:
   --export-criteria TEXT          Specify saved criteria to export to a file.
   --export-file PATH              File to write exported rules to.
   --import-criteria PATH          Import previously exported criteria.
+  --output-format [plaintext|yaml|json]
+                                  Format of the command output [default=plaintext].
   --verbose                       Enable debug logging.
   --help                          Show this message and exit.
 ```

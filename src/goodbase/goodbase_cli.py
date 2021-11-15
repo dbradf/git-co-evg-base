@@ -554,14 +554,14 @@ def main(
 
         if revision:
             revision_dict = {}
-            revision_dict["mongo"] = revision.revision
+            revision_dict["stable_revision"] = revision.revision
             for module_name, module_revision in revision.module_revisions.items():
                 revision_dict[module_name] = module_revision
 
             if output_format == "yaml":
-                click.echo(click.style(yaml.dump(revision_dict, sort_keys=False), fg="green"))
+                print(yaml.dump(revision_dict, sort_keys=False))
             elif output_format == "json":
-                click.echo(click.style(json.dumps(revision_dict), fg="green"))
+                print(json.dumps(revision_dict))
             else:  # "plaintext"
                 click.echo(click.style(f"Found revision: {revision.revision}", fg="green"))
                 for module_name, module_revision in revision.module_revisions.items():
