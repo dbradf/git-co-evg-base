@@ -1,4 +1,5 @@
 """Command line entry point to application."""
+import json
 import logging
 import os.path
 import sys
@@ -9,6 +10,7 @@ from typing import Dict, List, NamedTuple, Optional
 import click
 import inject
 import structlog
+import yaml
 from evergreen import EvergreenApi, RetryingEvergreenApi
 from plumbum import ProcessExecutionError
 from rich.console import Console
@@ -390,6 +392,12 @@ def configure_logging(verbose: bool) -> None:
 @click.option(
     "--import-criteria", type=click.Path(exists=True), help="Import previously exported criteria."
 )
+@click.option(
+    "--output-format",
+    type=click.Choice(["plaintext", "yaml", "json"]),
+    default="plaintext",
+    help="Format of the command output [default=plaintext].",
+)
 @click.option("--verbose", is_flag=True, default=False, help="Enable debug logging.")
 def main(
     passing_task: List[str],
@@ -410,6 +418,7 @@ def main(
     export_criteria: List[str],
     export_file: str,
     import_criteria: Optional[str],
+    output_format: str,
     override: bool,
     verbose: bool,
 ) -> None:
@@ -544,9 +553,19 @@ def main(
         revision = orchestrator.checkout_good_base(evg_project, criteria)
 
         if revision:
-            click.echo(click.style(f"Found revision: {revision.revision}", fg="green"))
+            revision_dict = {}
+            revision_dict["mongo"] = revision.revision
             for module_name, module_revision in revision.module_revisions.items():
-                click.echo(click.style(f"\t{module_name}: {module_revision}", fg="green"))
+                revision_dict[module_name] = module_revision
+
+            if output_format == "yaml":
+                click.echo(click.style(yaml.dump(revision_dict, sort_keys=False), fg="green"))
+            elif output_format == "json":
+                click.echo(click.style(json.dumps(revision_dict), fg="green"))
+            else:  # "plaintext"
+                click.echo(click.style(f"Found revision: {revision.revision}", fg="green"))
+                for module_name, module_revision in revision.module_revisions.items():
+                    click.echo(click.style(f"\t{module_name}: {module_revision}", fg="green"))
 
             if revision.errors:
                 click.echo(
