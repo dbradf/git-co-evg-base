@@ -1,4 +1,6 @@
 # Changelog
+## 0.5.2 - 2021-11-15
+- Add support for YAML and JSON output formats.
 
 ## 0.5.1 - 2021-09-14
 - Add branch name option to git checkout operation.

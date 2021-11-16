@@ -1,15 +1,17 @@
 """Command line entry point to application."""
+import json
 import logging
 import os.path
 import sys
 from pathlib import Path
 from time import perf_counter
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, Iterable, List, NamedTuple, Optional
 
 import click
 import inject
 import structlog
-from evergreen import EvergreenApi, RetryingEvergreenApi
+import yaml
+from evergreen import EvergreenApi, RetryingEvergreenApi, Version
 from plumbum import ProcessExecutionError
 from rich.console import Console
 from rich.table import Table
@@ -129,7 +131,9 @@ class GoodBaseOrchestrator:
         self.options = options
         self.console = console
 
-    def find_revision(self, evg_project: str, build_checks: List[BuildChecks]) -> Optional[str]:
+    def find_revision(
+        self, evg_project: str, build_checks: List[BuildChecks], output_format: str
+    ) -> Optional[str]:
         """
         Iterate through revisions until one is found that matches the given criteria.
 
@@ -138,12 +142,10 @@ class GoodBaseOrchestrator:
         :return: First git revision to match the given criteria if it exists.
         """
         start_time = perf_counter()
-        with click.progressbar(
-            self.evg_api.versions_by_project(evg_project),
-            length=self.options.max_lookback,
-            label=f"Searching {evg_project} revisions",
-        ) as bar:
-            for idx, evg_version in enumerate(bar):
+        versions = self.evg_api.versions_by_project(evg_project)
+
+        def find_stable_revision(evg_versions: Iterable[Version]) -> Optional[str]:
+            for idx, evg_version in enumerate(evg_versions):
                 current_time = perf_counter()
                 elapsed_time = current_time - start_time
                 if self.options.lookback_limit_hit(idx, evg_version.revision, elapsed_time):
@@ -154,7 +156,19 @@ class GoodBaseOrchestrator:
                 if self.evg_service.check_version(evg_version, build_checks):
                     return evg_version.revision
 
-        return None
+            return None
+
+        if output_format in ("yaml", "json"):
+            stable_revision = find_stable_revision(versions)
+        else:  # plaintext: show progress bar
+            with click.progressbar(
+                versions,
+                length=self.options.max_lookback,
+                label=f"Searching {evg_project} revisions",
+            ) as bar:
+                stable_revision = find_stable_revision(bar)
+
+        return stable_revision
 
     def attempt_git_operation(
         self, operation: GitAction, revision: str, directory: Optional[Path] = None
@@ -203,7 +217,10 @@ class GoodBaseOrchestrator:
         return errors_encountered
 
     def checkout_good_base(
-        self, evg_project: str, build_checks: List[BuildChecks]
+        self,
+        evg_project: str,
+        build_checks: List[BuildChecks],
+        output_format: str,
     ) -> Optional[RevisionInformation]:
         """
         Find the latest git revision that matches the criteria and check it out in git.
@@ -212,7 +229,7 @@ class GoodBaseOrchestrator:
         :param build_checks: Criteria to enforce.
         :return: Revision that was checked out, if it exists.
         """
-        revision = self.find_revision(evg_project, build_checks)
+        revision = self.find_revision(evg_project, build_checks, output_format)
         if revision:
             module_revisions = self.evg_service.get_modules_revisions(evg_project, revision)
             errmsg = self.attempt_git_operation(self.options.operation, revision)
@@ -390,6 +407,12 @@ def configure_logging(verbose: bool) -> None:
 @click.option(
     "--import-criteria", type=click.Path(exists=True), help="Import previously exported criteria."
 )
+@click.option(
+    "--output-format",
+    type=click.Choice(["plaintext", "yaml", "json"]),
+    default="plaintext",
+    help="Format of the command output [default=plaintext].",
+)
 @click.option("--verbose", is_flag=True, default=False, help="Enable debug logging.")
 def main(
     passing_task: List[str],
@@ -410,6 +433,7 @@ def main(
     export_criteria: List[str],
     export_file: str,
     import_criteria: Optional[str],
+    output_format: str,
     override: bool,
     verbose: bool,
 ) -> None:
@@ -541,12 +565,22 @@ def main(
 
         LOGGER.debug("criteria", criteria=build_checks)
 
-        revision = orchestrator.checkout_good_base(evg_project, criteria)
+        revision = orchestrator.checkout_good_base(evg_project, criteria, output_format)
 
         if revision:
-            click.echo(click.style(f"Found revision: {revision.revision}", fg="green"))
+            revision_dict = {}
+            revision_dict["stable_revision"] = revision.revision
             for module_name, module_revision in revision.module_revisions.items():
-                click.echo(click.style(f"\t{module_name}: {module_revision}", fg="green"))
+                revision_dict[module_name] = module_revision
+
+            if output_format == "yaml":
+                print(yaml.dump(revision_dict, sort_keys=False))
+            elif output_format == "json":
+                print(json.dumps(revision_dict))
+            else:  # "plaintext"
+                click.echo(click.style(f"Found revision: {revision.revision}", fg="green"))
+                for module_name, module_revision in revision.module_revisions.items():
+                    click.echo(click.style(f"\t{module_name}: {module_revision}", fg="green"))
 
             if revision.errors:
                 click.echo(
