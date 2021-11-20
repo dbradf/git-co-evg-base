@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.4 - 2021-11-20
+- Improve test dependencies
+
 ## 0.5.3 - 2021-11-20
 - Support calls from outside a git repo.
 - Refactor to be more testable.
