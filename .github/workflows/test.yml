@@ -27,6 +27,13 @@ jobs:
         pip install poetry
         poetry install
 
+        wget -q https://github.com/dbradf/pypi-version-check/releases/download/v0.1.2/pypi-version-check
+        chmod +x pypi-version-check
+
     - name: Test with pytest
       run: |
         poetry run pytest 
+
+    - name: Test pypi version
+      run: |
+        ./pypi-version-check
