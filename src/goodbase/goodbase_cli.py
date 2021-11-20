@@ -4,24 +4,24 @@ import logging
 import os.path
 import sys
 from pathlib import Path
-from time import perf_counter
-from typing import Dict, Iterable, List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 import click
 import inject
 import structlog
 import yaml
-from evergreen import EvergreenApi, RetryingEvergreenApi, Version
+from evergreen import EvergreenApi, RetryingEvergreenApi
 from plumbum import ProcessExecutionError
 from rich.console import Console
 from rich.table import Table
 from structlog.stdlib import LoggerFactory
 
 from goodbase.build_checker import BuildChecks
-from goodbase.services.config_service import ConfigurationService, CriteriaConfiguration
+from goodbase.goodbase_options import GoodBaseOptions, OutputFormat
+from goodbase.services.criteria_service import CriteriaService
 from goodbase.services.evg_service import EvergreenService
-from goodbase.services.file_service import FileService
 from goodbase.services.git_service import GitAction, GitService
+from goodbase.services.search_service import SearchService
 
 LOGGER = structlog.get_logger(__name__)
 
@@ -35,53 +35,6 @@ EXTERNAL_LOGGERS = [
     "inject",
     "urllib3",
 ]
-
-
-class GoodBaseOptions(NamedTuple):
-    """
-    Options for execution.
-
-    * max_lookback: Number of commits to scan before giving up.
-    * commit_limit: Oldest commit to look at before giving up.
-    * operation: Type of git operation to perform.
-    * override_criteria: Override conflicting save criteria.
-    * timeouts_secs: Number of seconds to scan before timing out.
-    * branch_name: Name of branch to create on checkout.
-    """
-
-    max_lookback: int
-    commit_limit: Optional[str]
-    operation: GitAction
-    override_criteria: bool
-    timeout_secs: Optional[int] = None
-    branch_name: Optional[str] = None
-
-    def lookback_limit_hit(self, index: int, revision: str, elapsed_seconds: float) -> bool:
-        """
-        Determine if the limits of looking back have been hit.
-
-        :param index: Index of version being checked.
-        :param revision: git revision being checked.
-        :param elapsed_seconds: Number of seconds that have passed since operation started.
-        :return: True if we have hit the limit of version of check.
-        """
-        if index > self.max_lookback:
-            LOGGER.debug("Max lookback hit", max_lookback=self.max_lookback, commit_idx=index)
-            return True
-
-        if self.commit_limit and revision.startswith(self.commit_limit):
-            LOGGER.debug("Commit limit hit", commit_limit=self.commit_limit)
-            return True
-
-        if self.timeout_secs and elapsed_seconds > self.timeout_secs:
-            LOGGER.debug(
-                "Timeout hit",
-                timeout_secs=self.timeout_secs,
-                elapsed_seconds=elapsed_seconds,
-            )
-            return True
-
-        return False
 
 
 class RevisionInformation(NamedTuple):
@@ -104,71 +57,29 @@ class GoodBaseOrchestrator:
     @inject.autoparams()
     def __init__(
         self,
-        evg_api: EvergreenApi,
         evg_service: EvergreenService,
         git_service: GitService,
-        config_service: ConfigurationService,
-        file_service: FileService,
+        criteria_service: CriteriaService,
+        search_service: SearchService,
         options: GoodBaseOptions,
         console: Console,
     ) -> None:
         """
         Initialize the orchestrator.
 
-        :param evg_api: Evergreen API Client.
         :param evg_service:  Evergreen Service.
         :param git_service: Git Service.
-        :param config_service: Configuration service.
-        :param file_service: File service.
+        :param criteria_service: Service for working with criteria.
+        :param search_service: Service to search revisions.
         :param options: Options for execution.
         :param console: Rich console to print to.
         """
-        self.evg_api = evg_api
         self.evg_service = evg_service
         self.git_service = git_service
-        self.config_service = config_service
-        self.file_service = file_service
+        self.criteria_service = criteria_service
+        self.search_service = search_service
         self.options = options
         self.console = console
-
-    def find_revision(
-        self, evg_project: str, build_checks: List[BuildChecks], output_format: str
-    ) -> Optional[str]:
-        """
-        Iterate through revisions until one is found that matches the given criteria.
-
-        :param evg_project: Evergreen project to check.
-        :param build_checks: Criteria to enforce.
-        :return: First git revision to match the given criteria if it exists.
-        """
-        start_time = perf_counter()
-        versions = self.evg_api.versions_by_project(evg_project)
-
-        def find_stable_revision(evg_versions: Iterable[Version]) -> Optional[str]:
-            for idx, evg_version in enumerate(evg_versions):
-                current_time = perf_counter()
-                elapsed_time = current_time - start_time
-                if self.options.lookback_limit_hit(idx, evg_version.revision, elapsed_time):
-                    return None
-
-                LOGGER.debug("Checking version", commit=evg_version.revision)
-
-                if self.evg_service.check_version(evg_version, build_checks):
-                    return evg_version.revision
-
-            return None
-
-        if output_format in ("yaml", "json"):
-            stable_revision = find_stable_revision(versions)
-        else:  # plaintext: show progress bar
-            with click.progressbar(
-                versions,
-                length=self.options.max_lookback,
-                label=f"Searching {evg_project} revisions",
-            ) as bar:
-                stable_revision = find_stable_revision(bar)
-
-        return stable_revision
 
     def attempt_git_operation(
         self, operation: GitAction, revision: str, directory: Optional[Path] = None
@@ -200,6 +111,9 @@ class GoodBaseOrchestrator:
         :param module_revisions: Dictionary of module names and git revisions to check out.
         :return: Dictionary of error encountered.
         """
+        if self.options.operation == GitAction.NONE:
+            return {}
+
         module_locations = self.evg_service.get_module_locations(evg_project)
         LOGGER.debug(
             "Checking out modules",
@@ -220,7 +134,6 @@ class GoodBaseOrchestrator:
         self,
         evg_project: str,
         build_checks: List[BuildChecks],
-        output_format: str,
     ) -> Optional[RevisionInformation]:
         """
         Find the latest git revision that matches the criteria and check it out in git.
@@ -229,7 +142,7 @@ class GoodBaseOrchestrator:
         :param build_checks: Criteria to enforce.
         :return: Revision that was checked out, if it exists.
         """
-        revision = self.find_revision(evg_project, build_checks, output_format)
+        revision = self.search_service.find_revision(evg_project, build_checks)
         if revision:
             module_revisions = self.evg_service.get_modules_revisions(evg_project, revision)
             errmsg = self.attempt_git_operation(self.options.operation, revision)
@@ -249,9 +162,7 @@ class GoodBaseOrchestrator:
         :param name: Name to save criteria under.
         :param build_checks: Criteria to save.
         """
-        configuration = self.config_service.get_config()
-        configuration.add_criteria(name, build_checks, self.options.override_criteria)
-        self.config_service.save_config(configuration)
+        self.criteria_service.save_criteria(name, build_checks)
 
     def lookup_criteria(self, name: str) -> List[BuildChecks]:
         """
@@ -260,11 +171,7 @@ class GoodBaseOrchestrator:
         :param name: Name of criteria to lookup.
         :return: Saved criteria.
         """
-        configuration = self.config_service.get_config()
-        criteria = configuration.get_criteria_group(name)
-        if not criteria.rules:
-            raise ValueError("Not criteria found")
-        return criteria.rules
+        return self.criteria_service.lookup_criteria(name)
 
     def export_criteria(self, rules: List[str], destination: Path) -> None:
         """
@@ -273,11 +180,7 @@ class GoodBaseOrchestrator:
         :param rules: Names of rules to export.
         :param destination: Path of file to export to.
         """
-        rules_set = set(rules)
-        configuration = self.config_service.get_config()
-        rules_to_export = [rule for rule in configuration.saved_criteria if rule.name in rules_set]
-        export_config = CriteriaConfiguration(saved_criteria=rules_to_export)
-        self.file_service.write_yaml_file(destination, export_config.dict(exclude_none=True))
+        self.criteria_service.export_criteria(rules, destination)
 
     def import_criteria(self, import_file: Path) -> None:
         """
@@ -285,18 +188,11 @@ class GoodBaseOrchestrator:
 
         :param import_file: File containing rules to import.
         """
-        configuration = self.config_service.get_config()
-        import_file_contents = self.file_service.read_yaml_file(import_file)
-        import_criteria = CriteriaConfiguration(**import_file_contents)
-        for rule in import_criteria.saved_criteria:
-            for criteria in rule.rules:
-                configuration.add_criteria(rule.name, criteria, self.options.override_criteria)
-        self.config_service.save_config(configuration)
+        self.criteria_service.import_criteria(import_file)
 
     def display_criteria(self) -> None:
         """Display saved criteria."""
-        configuration = self.config_service.get_config()
-        for group in configuration.saved_criteria:
+        for group in self.criteria_service.get_all_criteria():
             table = Table(title=group.name, show_lines=True)
             table.add_column("Build Variant Regexes")
             table.add_column("Success %")
@@ -409,8 +305,8 @@ def configure_logging(verbose: bool) -> None:
 )
 @click.option(
     "--output-format",
-    type=click.Choice(["plaintext", "yaml", "json"]),
-    default="plaintext",
+    type=click.Choice([f.value for f in OutputFormat]),
+    default=OutputFormat.PLAINTEXT,
     help="Format of the command output [default=plaintext].",
 )
 @click.option("--verbose", is_flag=True, default=False, help="Enable debug logging.")
@@ -433,7 +329,7 @@ def main(
     export_criteria: List[str],
     export_file: str,
     import_criteria: Optional[str],
-    output_format: str,
+    output_format: OutputFormat,
     override: bool,
     verbose: bool,
 ) -> None:
@@ -494,6 +390,7 @@ def main(
         override_criteria=override,
         timeout_secs=timeout_secs,
         branch_name=branch,
+        output_format=output_format,
     )
 
     build_variant_checks = [".*-required$"]
@@ -565,17 +462,18 @@ def main(
 
         LOGGER.debug("criteria", criteria=build_checks)
 
-        revision = orchestrator.checkout_good_base(evg_project, criteria, output_format)
+        revision = orchestrator.checkout_good_base(evg_project, criteria)
 
         if revision:
-            revision_dict = {}
+            revision_dict = {
+                module_name: module_revision
+                for module_name, module_revision in revision.module_revisions.items()
+            }
             revision_dict["stable_revision"] = revision.revision
-            for module_name, module_revision in revision.module_revisions.items():
-                revision_dict[module_name] = module_revision
 
-            if output_format == "yaml":
+            if output_format == OutputFormat.YAML:
                 print(yaml.dump(revision_dict, sort_keys=False))
-            elif output_format == "json":
+            elif output_format == OutputFormat.JSON:
                 print(json.dumps(revision_dict))
             else:  # "plaintext"
                 click.echo(click.style(f"Found revision: {revision.revision}", fg="green"))
