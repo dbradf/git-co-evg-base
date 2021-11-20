@@ -1,4 +1,9 @@
 # Changelog
+
+## 0.5.3 - 2021-11-20
+- Support calls from outside a git repo.
+- Refactor to be more testable.
+
 ## 0.5.2 - 2021-11-15
 - Add support for YAML and JSON output formats.
 
