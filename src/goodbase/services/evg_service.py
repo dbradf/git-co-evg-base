@@ -5,6 +5,7 @@ from typing import Dict, List
 
 import inject
 from evergreen import EvergreenApi, Version
+from requests.exceptions import HTTPError
 
 from goodbase.build_checker import BuildChecks
 from goodbase.models.build_status import BuildStatus
@@ -86,7 +87,13 @@ class EvergreenService:
         :param revision: Commit revision to query.
         :return: Dictionary of modules and revisions associated with specified commit.
         """
-        manifest = self.evg_api.manifest(project_id, revision)
+        try:
+            manifest = self.evg_api.manifest(project_id, revision)
+        except HTTPError as err:
+            if err.response.status_code == 404:
+                # If a project does not use modules, the manifest will return 404.
+                return {}
+            raise err
         modules = manifest.modules
         if modules is not None:
             return {module_name: module.revision for module_name, module in modules.items()}

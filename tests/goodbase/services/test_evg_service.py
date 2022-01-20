@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from evergreen import Build, EvergreenApi, Manifest, Project, Task, Version
 from evergreen.manifest import ManifestModule
+from requests.exceptions import HTTPError
 
 import goodbase.services.evg_service as under_test
 from goodbase.build_checker import BuildChecks
@@ -279,6 +280,13 @@ class TestGetModulesRevisions:
         mock_evg_manifest(evg_service, build_mock_manifest(modules))
 
         assert modules == evg_service.get_modules_revisions("project id", "gitrevision")
+
+    def test_manifest_endpoint_returns_404(self, evg_service):
+        http_response = MagicMock(status_code=404)
+
+        evg_service.evg_api.manifest.side_effect = HTTPError(response=http_response)
+
+        assert {} == evg_service.get_modules_revisions("project id", "gitrevision")
 
 
 class TestGetProjectConfigLocation:
