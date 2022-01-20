@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.5 - 2022-01-19
+- Fix bug when running against evergreen projects with no modules.
+
 ## 0.5.4 - 2021-11-20
 - Improve test dependencies
 
