@@ -32,3 +32,14 @@ jobs:
       run: |
         poetry publish --build --username $PYPI_USERNAME --password $PYPI_PASSWORD
 
+    - name: Build docs
+      working-directory: ./goodbase-docs
+      run: |
+        wget -q https://github.com/gohugoio/hugo/releases/download/v0.92.1/hugo_0.92.1_Linux-64bit.tar.gz
+        tar xf hugo_0.92.1_Linux-64bit.tar.gz
+        ./hugo
+
+    - name: Publish docs
+      run: |
+        wget -q https://github.com/dbradf/gh-pages-publish/releases/download/v0.1.1/gh-pages-publish-linux
+        gh-pages-publish-linux --docs-dir goodbase-docs/public
