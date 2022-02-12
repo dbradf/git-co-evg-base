@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.11 - 2022-02-12
+- Fix publishing.
+
 ## 0.5.10 - 2022-02-12
 - Improve how documentation is published.
 
