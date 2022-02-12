@@ -37,10 +37,11 @@ jobs:
       run: |
         wget -q https://github.com/gohugoio/hugo/releases/download/v0.92.1/hugo_0.92.1_Linux-64bit.tar.gz
         tar xf hugo_0.92.1_Linux-64bit.tar.gz
+        cp ../CHANGELOG.md content/project-history
         ./hugo
 
     - name: Publish docs
       run: |
-        wget -q https://github.com/dbradf/gh-pages-publish/releases/download/v0.1.1/gh-pages-publish-linux
+        wget -q https://github.com/dbradf/gh-pages-publish/releases/download/v0.1.2/gh-pages-publish-linux
         chmod +x gh-pages-publish-linux
         ./gh-pages-publish-linux --docs-dir goodbase-docs/public
