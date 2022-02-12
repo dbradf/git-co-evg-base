@@ -49,6 +49,6 @@ jobs:
 
     - name: Publish docs
       run: |
-        wget -q https://github.com/dbradf/gh-pages-publish/releases/download/v0.2.0/gh-pages-publish-linux
+        wget -q https://github.com/dbradf/gh-pages-publish/releases/download/0.2.0/gh-pages-publish-linux
         chmod +x gh-pages-publish-linux
         ./gh-pages-publish-linux --docs-dir goodbase-docs/public --verbose
