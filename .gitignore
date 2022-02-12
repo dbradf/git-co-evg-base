@@ -489,3 +489,10 @@ fabric.properties
 .DS_STORE
 
 .mypy_cache
+
+gh-pages-publish-linux
+hugo
+hugo_*.tar.gz
+goodbase-docs/LICENSE
+goodbase-docs/README.md
+goodbase-docs/content/project-history/CHANGELOG.md
