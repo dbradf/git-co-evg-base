@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Git Checkout Evergreen Base Documentation</title>
+    <link>https://dbradf.github.io/git-co-evg-base/concepts/</link>
+    <description>Recent content on Git Checkout Evergreen Base Documentation</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language><atom:link href="https://dbradf.github.io/git-co-evg-base/concepts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title></title>
+      <link>https://dbradf.github.io/git-co-evg-base/concepts/criteria/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://dbradf.github.io/git-co-evg-base/concepts/criteria/</guid>
+      <description>git-co-evg-base allows you to specify criteria that define what a matching evergreen version will look like.
+There are 4 types of criteria that can be specified.
+ passing tasks run tasks pass threshold run threshold  Passing tasks     Passing tasks are tasks that must have completed successfully in Evergreen to meet the criteria. They are specified with the --passing-task option. This option can be specified more than once to include multiple tasks.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://dbradf.github.io/git-co-evg-base/concepts/criteria_application/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://dbradf.github.io/git-co-evg-base/concepts/criteria_application/</guid>
+      <description>Applying checks to build variants     In projects with multiple build variants, you may not desire to apply the criteria to every build variant. The --build-variant option allows you to control which build variants the checks should apply. The option takes a regular expression as an argument. Any build variants that match against the regular express will have their criteria checked.
+The --build-variant option can be specified multiple times to provide multiple regular expression to check against.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://dbradf.github.io/git-co-evg-base/concepts/actions/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://dbradf.github.io/git-co-evg-base/concepts/actions/</guid>
+      <description>Performing git actions when the criteria are meet     Once a revision that meets the specified criteria is found, that revision can be used to perform certain git operations. By default, a git checkout will be performed to checkout the revision in the local repository. However, the --git-operation option can be provided to change this behavior.
+The option takes one of the following as an argument:
+ checkout [default] - Perform a git checkout to checkout the found revision.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://dbradf.github.io/git-co-evg-base/concepts/reusing_criteria/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://dbradf.github.io/git-co-evg-base/concepts/reusing_criteria/</guid>
+      <description>Saving criteria     Instead of typing out the criteria to search for on every execution, criteria can be saved under a given name and then referenced in future executions.
+The --save-criteria option will do this. It takes a name to save the criteria under as an argument. When the --save-criteria option is specified, the search for a revision will not occur. The criteria will only be saved.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://dbradf.github.io/git-co-evg-base/concepts/sharing_criteria/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://dbradf.github.io/git-co-evg-base/concepts/sharing_criteria/</guid>
+      <description>You can use --export-criteria and --import-criteria to share criteria rules with others.
+Exporting criteria rules     The --export-criteria option will export saved criteria to a file that can be shared. It takes the name of a saved criteria as a argument. The option can be specified multiple times to export multiple named criteria. The --export-file is required and takes as an argument that specified where the exported rules should be written.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://dbradf.github.io/git-co-evg-base/concepts/limiting_search_time/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://dbradf.github.io/git-co-evg-base/concepts/limiting_search_time/</guid>
+      <description>The tool will limit how far back it will search before giving up. By default, it will look back 50 commits. This can be customized, however. There are three ways to limit how far back is searched:
+ commit [default=50]: The --commit-lookback option takes an argument that specifies how many commits to search before giving up. time: The --timeout-secs option takes an argument that specifies how many seconds to search before giving up.</description>
+    </item>
+    
+  </channel>
+</rss>

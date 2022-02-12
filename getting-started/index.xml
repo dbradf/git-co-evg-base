@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Git Checkout Evergreen Base Documentation</title>
+    <link>https://dbradf.github.io/git-co-evg-base/getting-started/</link>
+    <description>Recent content on Git Checkout Evergreen Base Documentation</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language><atom:link href="https://dbradf.github.io/git-co-evg-base/getting-started/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title></title>
+      <link>https://dbradf.github.io/git-co-evg-base/getting-started/installation/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://dbradf.github.io/git-co-evg-base/getting-started/installation/</guid>
+      <description>Prerequisites      git Evergreen config file  Installation     We strongly recommend using a tool like pipx to install this tool. This will isolate the dependencies and ensure they don&amp;rsquo;t conflict with other tools.
+$ pipx install git-co-evg-base </description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://dbradf.github.io/git-co-evg-base/getting-started/prerequisites/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://dbradf.github.io/git-co-evg-base/getting-started/prerequisites/</guid>
+      <description>Evergreen authentication     This tool needs to talk to evergreen via the evergreen api in order to function. If you have setup the evergreen command line tool as described here, everything should be setup for the tool to function.
+If for some reason the .evergreen.yml file that contains your username and api key is not in your home directory, you will need to use the --evg-config-file option to specify the location when running the command.</description>
+    </item>
+    
+    <item>
+      <title></title>
+      <link>https://dbradf.github.io/git-co-evg-base/getting-started/getting_help/</link>
+      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+      
+      <guid>https://dbradf.github.io/git-co-evg-base/getting-started/getting_help/</guid>
+      <description>You can get a list of all the available options with the --help option.
+Note\ When using the --help option, you will need to call the command directly via git-co-evg-base and not execute it via git (i.e. git co-evg-base, note the space after git). This is due to a limitation in the git help system.  Additionally, there is a --verbose option that can be specified to get more detailed information about what the command is doing.</description>
+    </item>
+    
+  </channel>
+</rss>
