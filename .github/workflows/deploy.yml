@@ -42,4 +42,4 @@ jobs:
     - name: Publish docs
       run: |
         wget -q https://github.com/dbradf/gh-pages-publish/releases/download/v0.1.1/gh-pages-publish-linux
-        gh-pages-publish-linux --docs-dir goodbase-docs/public
+        ./gh-pages-publish-linux --docs-dir goodbase-docs/public
