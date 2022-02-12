@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.6 - 2022-02-12
+- Added published documentation.
+
 ## 0.5.5 - 2022-01-19
 - Fix bug when running against evergreen projects with no modules.
 

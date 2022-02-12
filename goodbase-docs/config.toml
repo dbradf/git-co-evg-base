@@ -1,0 +1,22 @@
+baseURL = 'https://dbradf.github.io/git-co-evg-base/'
+title = 'Git Checkout Evergreen Base Documentation'
+theme = "hugo-geekdoc"
+languageCode = 'en-us'
+
+pluralizeListTitles = false
+
+pygmentsUseClasses = true
+pygmentsCodeFences = true
+disablePathToLower = true
+enableGitInfo = true
+
+[markup]
+  [markup.goldmark.renderer]
+    # Needed for mermaid shortcode
+    unsafe = true
+  [markup.tableOfContents]
+    startLevel = 1
+    endLevel = 9
+
+[params]
+  geekdocLogo = "images/evergreen.png"

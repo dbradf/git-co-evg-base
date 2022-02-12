@@ -7,10 +7,11 @@ Find and checkout a recent git commit that matches the specified criteria.
 ## Table of contents
 
 1. [Description](#description)
-2. [Dependencies](#dependencies)
-3. [Installation](#installation)
-4. [Usage](#usage)
-5. [Contributor's Guide](#contributors-guide)
+2. [Documentation](#documentation)
+3. [Dependencies](#dependencies)
+4. [Installation](#installation)
+5. [Usage](#usage)
+6. [Contributor's Guide](#contributors-guide)
     - [Setting up a local development environment](#setting-up-a-local-development-environment)
     - [linting/formatting](#lintingformatting)
     - [Running tests](#running-tests)
@@ -18,7 +19,7 @@ Find and checkout a recent git commit that matches the specified criteria.
     - [Versioning](#versioning)
     - [Code Review](#code-review)
     - [Deployment](#deployment)
-6. [Resources](#resources)
+7. [Resources](#resources)
 
 ## Description
 
@@ -30,6 +31,10 @@ your changes may have introduced the failure.
 
 This command allows you to specify criteria to use to find and checkout a
 git commit to start work from.
+
+## Documentation
+
+Documentation can be found [here](https://dbradf.github.io/git-co-evg-base/).
 
 ## Dependencies
 

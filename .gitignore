@@ -489,3 +489,5 @@ fabric.properties
 .DS_STORE
 
 .mypy_cache
+
+goodbase-docs/public
