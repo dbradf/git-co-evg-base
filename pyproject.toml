@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "git-co-evg-base"
-version = "0.5.11"
+version = "0.5.12"
 description = "Find a good commit to base your work on"
 authors = ["David Bradford <david.bradford@mongodb.com>"]
 readme = "README.md"
