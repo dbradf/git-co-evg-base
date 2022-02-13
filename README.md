@@ -2,7 +2,7 @@
 
 Find and checkout a recent git commit that matches the specified criteria.
 
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/git-co-evg-base) [![PyPI](https://img.shields.io/pypi/v/git-co-evg-base.svg)](https://pypi.org/project/git-co-evg-base/) [![Upload Python Package](https://github.com/dbradf/git-co-evg-base/actions/workflows/deploy.yml/badge.svg)](https://github.com/dbradf/git-co-evg-base/actions/workflows/deploy.yml) [![test-python-project](https://github.com/dbradf/git-co-evg-base/actions/workflows/test.yml/badge.svg)](https://github.com/dbradf/git-co-evg-base/actions/workflows/test.yml)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/git-co-evg-base) [![PyPI](https://img.shields.io/pypi/v/git-co-evg-base.svg)](https://pypi.org/project/git-co-evg-base/) [![Upload Python Package](https://github.com/dbradf/git-co-evg-base/actions/workflows/deploy.yml/badge.svg)](https://github.com/dbradf/git-co-evg-base/actions/workflows/deploy.yml) [![test-python-project](https://github.com/dbradf/git-co-evg-base/actions/workflows/test.yml/badge.svg)](https://github.com/dbradf/git-co-evg-base/actions/workflows/test.yml) [![Documentation](https://img.shields.io/badge/Docs-Available-green)](https://dbradf.github.io/git-co-evg-base/)
 
 ## Table of contents
 

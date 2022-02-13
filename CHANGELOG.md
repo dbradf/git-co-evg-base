@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.12 - 2022-02-13
+- Add badge to documentation.
+
 ## 0.5.11 - 2022-02-12
 - Fix publishing.
 
