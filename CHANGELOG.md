@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.13 - 2022-04-05
+- Update the message printed when no revision is found.
+
 ## 0.5.12 - 2022-02-13
 - Add badge to documentation.
 
