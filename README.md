@@ -1,3 +1,6 @@
+The canonical location for this repository has moved to https://github.com/evergreen-ci/git-co-evg-base,
+this repository is no longer up to date.
+
 # git-co-evg-base
 
 Find and checkout a recent git commit that matches the specified criteria.
